@@ -1,0 +1,55 @@
+providers:
+  google_ads:
+    provider: google_ads
+    modules:
+      ga4: false
+      merchant_center: false
+      youtube: false
+      search_console: false
+      business_profile: false
+    accounts:
+      - name: Example Google Ads Account
+        account_id: "1234567890"
+        status: configured
+        customer_id: "123-456-7890"
+        login_customer_id: "123-456-7890"
+        developer_token: "YOUR_DEVELOPER_TOKEN"
+        oauth_client_id: "YOUR_GOOGLE_CLIENT_ID"
+        oauth_client_secret: "YOUR_GOOGLE_CLIENT_SECRET"
+        refresh_token: "YOUR_GOOGLE_REFRESH_TOKEN"
+
+  meta_ads:
+    provider: meta_ads
+    accounts:
+      - name: Example Meta Account
+        account_id: "123456789012345"
+        status: configured
+        app_id: "YOUR_META_APP_ID"
+        app_secret: "YOUR_META_APP_SECRET"
+        access_token: "YOUR_META_ACCESS_TOKEN"
+        api_version: "v20.0"
+        action_metrics:
+          - lead
+          - onsite_conversion.lead_grouped
+        video_metrics:
+          - video_view
+
+  tiktok_ads:
+    provider: tiktok_ads
+    accounts:
+      - name: Example TikTok Advertiser
+        account_id: "1234567890123456789"
+        advertiser_id: "1234567890123456789"
+        status: configured
+        app_id: "YOUR_TIKTOK_APP_ID"
+        secret: "YOUR_TIKTOK_SECRET"
+        access_token: "YOUR_TIKTOK_ACCESS_TOKEN"
+
+  yandex_direct:
+    provider: yandex_direct
+    accounts:
+      - name: Example Yandex Account
+        account_id: "example-yandex-account"
+        login: "your-yandex-login"
+        status: configured
+        access_token: "YOUR_YANDEX_ACCESS_TOKEN"

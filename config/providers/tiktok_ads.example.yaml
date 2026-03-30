@@ -1,0 +1,9 @@
+provider: tiktok_ads
+accounts:
+  - name: Example TikTok Advertiser
+    account_id: "1234567890123456789"
+    advertiser_id: "1234567890123456789"
+    status: configured
+    app_id: "YOUR_TIKTOK_APP_ID"
+    secret: "YOUR_TIKTOK_SECRET"
+    access_token: "YOUR_TIKTOK_ACCESS_TOKEN"

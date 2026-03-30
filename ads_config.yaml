@@ -1,0 +1,54 @@
+providers:
+  google_ads:
+    provider: google_ads
+    modules:
+      ga4: false
+      merchant_center: false
+      youtube: false
+      search_console: false
+      business_profile: false
+    accounts:
+      - name: Main Google Ads Account
+        account_id: ""
+        status: configured
+        customer_id: ""
+        login_customer_id: ""
+        developer_token: ""
+        oauth_client_id: ""
+        oauth_client_secret: ""
+        refresh_token: ""
+
+  meta_ads:
+    provider: meta_ads
+    accounts:
+      - name: Main Meta Ads Account
+        account_id: ""
+        status: configured
+        app_id: ""
+        app_secret: ""
+        access_token: ""
+        api_version: "v20.0"
+        action_metrics:
+          - lead
+        video_metrics:
+          - video_view
+
+  tiktok_ads:
+    provider: tiktok_ads
+    accounts:
+      - name: Main TikTok Ads Account
+        account_id: ""
+        advertiser_id: ""
+        status: configured
+        app_id: ""
+        secret: ""
+        access_token: ""
+
+  yandex_direct:
+    provider: yandex_direct
+    accounts:
+      - name: Main Yandex Direct Account
+        account_id: ""
+        login: ""
+        status: configured
+        access_token: ""

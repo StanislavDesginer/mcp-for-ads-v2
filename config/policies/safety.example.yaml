@@ -1,0 +1,9 @@
+write_mode: preview_confirm
+execution_mode: simulated_no_write
+allow_unknown_accounts: false
+max_budget_delta_percent: 30
+max_bulk_object_count: 50
+require_confirm_for:
+  - create
+  - update
+  - delete_or_archive

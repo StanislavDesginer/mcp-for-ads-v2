@@ -1,0 +1,17 @@
+provider: google_ads
+accounts:
+  - name: Example Google Ads Account
+    account_id: "1234567890"
+    status: configured
+    customer_id: "123-456-7890"
+    login_customer_id: "123-456-7890"
+    developer_token: "YOUR_DEVELOPER_TOKEN"
+    oauth_client_id: "YOUR_GOOGLE_CLIENT_ID"
+    oauth_client_secret: "YOUR_GOOGLE_CLIENT_SECRET"
+    refresh_token: "YOUR_GOOGLE_REFRESH_TOKEN"
+modules:
+  ga4: false
+  merchant_center: false
+  youtube: false
+  search_console: false
+  business_profile: false

@@ -1,0 +1,7 @@
+provider: yandex_direct
+accounts:
+  - name: Example Yandex Account
+    account_id: "example-yandex-account"
+    login: "your-yandex-login"
+    status: configured
+    access_token: "YOUR_YANDEX_ACCESS_TOKEN"
