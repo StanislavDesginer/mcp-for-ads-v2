@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meta Ads Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <div class="page-bg"></div>
+
+  <!-- Toast notifications (injected by JS) -->
+  <div id="toast-root" class="toast-root"></div>
+
+  <!-- Preview drawer overlay -->
+  <div class="preview-overlay" id="preview-overlay"></div>
+
+  <!-- Preview drawer (slides in from right) -->
+  <aside class="preview-drawer" id="preview-drawer">
+    <div class="drawer-head">
+      <div>
+        <p class="eyebrow">Preview действия</p>
+        <h3 class="drawer-title" id="drawer-title">Предварительный просмотр</h3>
+      </div>
+      <button class="drawer-close" id="drawer-close" aria-label="Закрыть">✕</button>
+    </div>
+    <div id="preview-risks" class="preview-risks"></div>
+    <pre id="preview-output" class="drawer-pre">Пока действий не было.</pre>
+    <div class="drawer-footer">
+      <span class="safe-badge">
+        <span class="status-dot status-dot-amber"></span>
+        Симуляция — реальных изменений нет
+      </span>
+      <button class="btn-copy" id="drawer-copy">Копировать JSON</button>
+    </div>
+  </aside>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <p class="eyebrow">MCP Tools</p>
+        <h1>Meta Ads<br>Console</h1>
+        <p class="muted-copy">
+          Операторская панель. Диагностика, контроль и безопасные preview-действия.
+        </p>
+      </div>
+
+      <nav class="side-nav">
+        <button class="nav-btn is-active" data-load="dashboard">Сводка кабинета</button>
+        <button class="nav-btn" data-load="structure">Структура кампаний</button>
+        <button class="nav-btn" data-load="issues">Проблемы доставки</button>
+        <button class="nav-btn" data-load="assets">Подключённые активы</button>
+        <button class="nav-btn" data-load="winners">Лучшие кампании</button>
+        <button class="nav-btn" data-load="waste">Слив без результата</button>
+      </nav>
+
+      <section class="side-panel">
+        <div class="panel-head">
+          <h2>Быстрые действия</h2>
+          <p>Preview-режим — без реальных изменений.</p>
+        </div>
+
+        <div class="action-tabs">
+          <button class="tab-btn is-active" data-tab="clone">Клон</button>
+          <button class="tab-btn" data-tab="budget">Бюджет</button>
+          <button class="tab-btn" data-tab="pause">Пауза</button>
+        </div>
+
+        <div class="tab-panel is-active" data-panel="clone">
+          <form id="clone-form" class="action-form">
+            <label>
+              ID исходной кампании
+              <input name="source_campaign_id" placeholder="120243628303150308" required>
+            </label>
+            <label>
+              Новое название
+              <input name="new_name" placeholder="Клон для теста">
+            </label>
+            <label>
+              Дневной бюджет
+              <input name="daily_budget" type="number" step="0.01" placeholder="20">
+            </label>
+            <button type="submit" class="form-submit-btn">Сделать preview клона</button>
+          </form>
+        </div>
+
+        <div class="tab-panel" data-panel="budget">
+          <form id="budget-form" class="action-form">
+            <label>
+              ID кампании
+              <input name="campaign_id" placeholder="ID кампании" required>
+            </label>
+            <label>
+              Новый дневной бюджет
+              <input name="daily_budget" type="number" step="0.01" placeholder="35">
+            </label>
+            <label>
+              Изменение бюджета, %
+              <input name="budget_delta_percent" type="number" step="0.01" placeholder="15">
+            </label>
+            <button type="submit" class="form-submit-btn">Сделать preview бюджета</button>
+          </form>
+        </div>
+
+        <div class="tab-panel" data-panel="pause">
+          <form id="pause-form" class="action-form">
+            <label>
+              ID объявлений через запятую
+              <textarea name="ids" rows="4" placeholder="120237745682780308, 120237745682780309" required></textarea>
+            </label>
+            <button type="submit" class="form-submit-btn">Сделать preview паузы</button>
+          </form>
+        </div>
+      </section>
+    </aside>
+
+    <main class="main">
+      <!-- Compact dashboard header -->
+      <header class="dash-header">
+        <div class="dash-header-left">
+          <p class="eyebrow">Кабинет Meta Ads</p>
+          <h2 class="dash-account-name" id="account-badge">Загрузка...</h2>
+        </div>
+        <div class="dash-header-right">
+          <span class="refresh-time" id="refresh-time"></span>
+          <div class="hero-note">
+            <span class="status-dot" id="status-dot"></span>
+            <span id="status-label">Подключение...</span>
+          </div>
+          <button id="refresh-all" class="ghost-btn">↻ Обновить всё</button>
+        </div>
+      </header>
+
+      <section id="metrics" class="metric-grid"></section>
+
+      <section class="workspace-grid">
+        <article class="card card-wide" id="card-overview">
+          <div class="card-head">
+            <h3>Обзор кабинета</h3>
+            <p>Ключевая информация по аккаунту и статусам.</p>
+          </div>
+          <div id="account-overview"></div>
+        </article>
+
+        <article class="card" id="card-issues">
+          <div class="card-head">
+            <h3>Проблемы доставки</h3>
+            <p>Что сейчас мешает показам и одобрению.</p>
+          </div>
+          <div id="issues-list"></div>
+        </article>
+
+        <article class="card" id="card-assets">
+          <div class="card-head">
+            <h3>Подключённые активы</h3>
+            <p>Страницы, Instagram, пиксели и конверсии.</p>
+          </div>
+          <div id="assets-list"></div>
+        </article>
+
+        <article class="card card-wide" id="card-structure">
+          <div class="card-head">
+            <h3>Структура кампаний</h3>
+            <p>Быстрый обзор кампаний, адсетов и объявлений.</p>
+          </div>
+          <div id="campaign-structure"></div>
+        </article>
+
+        <article class="card" id="card-winners">
+          <div class="card-head">
+            <h3>Лучшие кампании</h3>
+            <p>Топ по эффективности за последнее окно.</p>
+          </div>
+          <div id="winners-list"></div>
+        </article>
+
+        <article class="card" id="card-waste">
+          <div class="card-head">
+            <h3>Слив без результата</h3>
+            <p>Сущности, где есть расход, но нет конверсий.</p>
+          </div>
+          <div id="waste-list"></div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>

@@ -9,6 +9,7 @@ def _wrap(resource: str, action: str, body: dict) -> dict:
         "http_method": method,
         "endpoint": f"/googleads/{resource}",
         "body": body,
+        **body,
     }
 
 

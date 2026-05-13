@@ -13,8 +13,12 @@ from ad_mcp.providers.meta_ads.client import MetaAdsProvider
 from ad_mcp.providers.tiktok_ads.client import TikTokAdsProvider
 from ad_mcp.providers.yandex_direct.client import YandexDirectProvider
 from ad_mcp.settings import Settings
+from ad_mcp.tools.account_read import build_account_read_tools
+from ad_mcp.tools.analytics_read import build_analytics_read_tools
+from ad_mcp.tools.billing import build_billing_tools
 from ad_mcp.tools.discovery import build_discovery_tools
 from ad_mcp.tools.intents import build_intent_tools
+from ad_mcp.tools.meta_specialist import build_meta_specialist_tools
 from ad_mcp.tools.objects import build_object_tools
 from ad_mcp.tools.reporting import build_reporting_tools
 from ad_mcp.tools.write_commit import build_write_commit_tools
@@ -49,11 +53,15 @@ def create_server() -> FastMCP:
     mcp = FastMCP("mcp-for-ads")
     toolsets = [
         build_discovery_tools(registry),
+        build_billing_tools(registry, policy_manager),
+        build_account_read_tools(registry, policy_manager),
+        build_analytics_read_tools(registry, policy_manager),
         build_reporting_tools(registry, policy_manager),
         build_object_tools(registry, policy_manager),
         build_write_preview_tools(registry, preview_manager, audit_logger, policy_manager),
         build_write_commit_tools(registry, preview_manager, audit_logger, policy_manager),
         build_intent_tools(registry, preview_manager, policy_manager),
+        build_meta_specialist_tools(registry, preview_manager, policy_manager),
     ]
     for toolset in toolsets:
         for name, func in toolset.items():

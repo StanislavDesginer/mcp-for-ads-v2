@@ -16,9 +16,16 @@ class MetaAccountCredentials:
     video_metrics: list[str] | None = None
 
 
+def normalize_meta_account_id(value: Any) -> str:
+    account_id = str(value or "").strip()
+    if account_id.startswith("act_"):
+        return account_id[4:]
+    return account_id
+
+
 def credentials_from_config(config: dict[str, Any]) -> MetaAccountCredentials:
     return MetaAccountCredentials(
-        account_id=str(config["account_id"]),
+        account_id=normalize_meta_account_id(config["account_id"]),
         app_id=config["app_id"],
         app_secret=config["app_secret"],
         access_token=config["access_token"],

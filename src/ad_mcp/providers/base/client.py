@@ -110,6 +110,249 @@ class BaseAdsProvider(ABC):
             preview=True,
         )
 
+    def get_billing_summary(self, account_id: str) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Billing summary is not implemented for this provider yet.",
+        }
+
+    def get_account_summary(self, account_id: str, fields: list[str] | None = None) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Account summary is not implemented for this provider yet.",
+        }
+
+    def list_account_objects(
+        self,
+        account_id: str,
+        object_type: str,
+        fields: list[str] | None = None,
+        params: dict[str, Any] | None = None,
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "object_type": object_type,
+            "status": "unsupported",
+            "message": "Object listing is not implemented for this provider yet.",
+        }
+
+    def get_account_object(
+        self,
+        account_id: str,
+        object_type: str,
+        object_id: str,
+        fields: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "object_type": object_type,
+            "object_id": object_id,
+            "status": "unsupported",
+            "message": "Object retrieval is not implemented for this provider yet.",
+        }
+
+    def get_flexible_insights(
+        self,
+        account_id: str,
+        level: str,
+        start_date: str,
+        end_date: str,
+        fields: list[str] | None = None,
+        breakdowns: list[str] | None = None,
+        params: dict[str, Any] | None = None,
+        limit: int = 500,
+    ) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "level": level,
+            "status": "unsupported",
+            "message": "Flexible insights are not implemented for this provider yet.",
+        }
+
+    def search_targeting(
+        self,
+        account_id: str,
+        query: str,
+        targeting_type: str,
+        limit: int = 25,
+    ) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "targeting_type": targeting_type,
+            "query": query,
+            "status": "unsupported",
+            "message": "Targeting search is not implemented for this provider yet.",
+        }
+
+    def get_spend_overview(self, account_id: str, end_date: str) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Spend overview is not implemented for this provider yet.",
+        }
+
+    def estimate_budget_days_remaining(self, account_id: str, end_date: str, lookback_days: int = 7) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Budget runway estimation is not implemented for this provider yet.",
+        }
+
+    def get_connected_assets(self, account_id: str) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Connected assets inspection is not implemented for this provider yet.",
+        }
+
+    def get_delivery_issues(self, account_id: str, limit: int = 100) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Delivery issue detection is not implemented for this provider yet.",
+        }
+
+    def rank_top_entities(
+        self,
+        account_id: str,
+        entity_level: str,
+        start_date: str,
+        end_date: str,
+        metric: str,
+        limit: int = 5,
+    ) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Top entity ranking is not implemented for this provider yet.",
+        }
+
+    def compare_periods(
+        self,
+        account_id: str,
+        entity_level: str,
+        start_date_a: str,
+        end_date_a: str,
+        start_date_b: str,
+        end_date_b: str,
+    ) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Period comparison is not implemented for this provider yet.",
+        }
+
+    def detect_anomalies(self, account_id: str, entity_level: str, end_date: str, lookback_days: int = 7) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Anomaly detection is not implemented for this provider yet.",
+        }
+
+    def analyze_audiences(self, account_id: str, start_date: str, end_date: str, limit: int = 20) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Audience analysis is not implemented for this provider yet.",
+        }
+
+    def find_burnout_ads(self, account_id: str, start_date: str, end_date: str, limit: int = 20) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Creative burnout analysis is not implemented for this provider yet.",
+        }
+
+    def audit_account(self, account_id: str, end_date: str) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Account audit is not implemented for this provider yet.",
+        }
+
+    def list_lead_forms(self, account_id: str, page_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Lead forms listing is not implemented for this provider yet.",
+        }
+
+    def get_recommendations_read(self, account_id: str, limit: int = 25, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Recommendations listing is not implemented for this provider yet.",
+        }
+
+    def list_automated_rules(self, account_id: str, limit: int = 50) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Automated rules listing is not implemented for this provider yet.",
+        }
+
+    def get_rule_history(self, account_id: str, limit: int = 50) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Rule history is not implemented for this provider yet.",
+        }
+
+    def get_minimum_budgets_read(self, account_id: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Minimum budget lookup is not implemented for this provider yet.",
+        }
+
+    def get_reach_estimate_read(self, account_id: str, params: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Reach estimate is not implemented for this provider yet.",
+        }
+
+    def get_tracking_specs(self, account_id: str) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Tracking inspection is not implemented for this provider yet.",
+        }
+
+    def audit_links_and_utms(self, account_id: str, limit: int = 100) -> dict[str, Any]:
+        return {
+            "provider": self.capabilities.provider,
+            "account_id": account_id,
+            "status": "unsupported",
+            "message": "Link and UTM audit is not implemented for this provider yet.",
+        }
+
     def preview_mutation(
         self,
         action: str,

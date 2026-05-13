@@ -1,9 +1,15 @@
 .env
+ads_config.yaml
 .venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pytest_cache/
+node_modules/
+outputs/
+dist/
+build/
+*.egg-info/
 secrets/*
 !secrets/.gitkeep
 tokens/*

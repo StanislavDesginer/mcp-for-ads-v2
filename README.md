@@ -29,6 +29,27 @@ pip install -e .[dev]
 ad-mcp-server
 ```
 
+## Web UI MVP
+- A lightweight Meta-only operator dashboard is now available for the currently configured account.
+- It is built as a hostable single-page web UI on top of the existing provider logic and safe preview flows.
+- Start it locally with:
+
+```bash
+cd C:\Users\Станислав\Documents\New project\mcp-for-ads
+.\.venv\Scripts\python.exe -m pip install -e .[dev,meta]
+ad-mcp-web
+```
+
+- Open [http://127.0.0.1:8765](http://127.0.0.1:8765)
+- Current MVP includes:
+- dashboard metrics from one Meta account
+- delivery issues
+- connected assets
+- campaign structure
+- top performers
+- no-result spend watchlist
+- safe preview actions for campaign clone, budget update, and bulk ad pause
+
 ## Connections config
 - All provider connections now live in one root file: [ads_config.example.yaml](/Users/rocket/Documents/holymedia-ads/mcp-for-ads/ads_config.example.yaml)
 - Full setup instructions are in [CONNECTING.md](/Users/rocket/Documents/holymedia-ads/mcp-for-ads/CONNECTING.md)
