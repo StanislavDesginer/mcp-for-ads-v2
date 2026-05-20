@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from ad_mcp.core.errors import AdMCPError
+from ad_mcp.settings import Settings
 from ad_mcp.web.service import MetaDashboardService
 
 
@@ -17,9 +18,16 @@ STATIC_ROOT = WEB_ROOT / "static"
 class AdsWebHandler(BaseHTTPRequestHandler):
     service = MetaDashboardService()
 
+    def _set_default_headers(self) -> None:
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Cache-Control", "no-store")
+
     def _send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
+        self._set_default_headers()
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -28,6 +36,7 @@ class AdsWebHandler(BaseHTTPRequestHandler):
     def _send_file(self, path: Path, content_type: str) -> None:
         body = path.read_bytes()
         self.send_response(HTTPStatus.OK)
+        self._set_default_headers()
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -52,6 +61,8 @@ class AdsWebHandler(BaseHTTPRequestHandler):
         try:
             if route == "/":
                 return self._send_file(STATIC_ROOT / "index.html", "text/html; charset=utf-8")
+            if route == "/healthz":
+                return self._send_json({"status": "ok"})
             if route == "/assets/app.css":
                 return self._send_file(STATIC_ROOT / "app.css", "text/css; charset=utf-8")
             if route == "/assets/app.js":
@@ -130,10 +141,14 @@ class AdsWebHandler(BaseHTTPRequestHandler):
 
         self._error("Route not found.", HTTPStatus.NOT_FOUND)
 
+    def log_message(self, format: str, *args) -> None:  # noqa: A003
+        return
+
 
 def main() -> None:
-    host = "127.0.0.1"
-    port = 8765
+    settings = Settings()
+    host = settings.web_host
+    port = settings.web_port
     server = ThreadingHTTPServer((host, port), AdsWebHandler)
     print(f"Meta MCP web UI running at http://{host}:{port}")
     server.serve_forever()

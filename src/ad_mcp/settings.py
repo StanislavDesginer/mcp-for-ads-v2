@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     audit_log_path: str = "logs/audit.jsonl"
     connections_config: str = "ads_config.yaml"
     policy_config: str = "config/policies/safety.example.yaml"
+    web_host: str = "127.0.0.1"
+    web_port: int = 8765
     project_root: Path = Field(default=ROOT_DIR)
 
     @property
