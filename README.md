@@ -1,43 +1,44 @@
 # mcp-for-ads
 
-MCP server for ad operations across `Meta Ads`, `Google Ads`, `TikTok Ads`, and `Yandex Direct`.
+MCP-сервер для работы с рекламными кабинетами `Meta Ads`, `Google Ads`, `TikTok Ads` и `Yandex Direct`.
 
-The project currently focuses on:
-- unified read tools across providers
-- safe `preview -> confirm` write flows
-- a Meta-focused web operator UI
-- no-write safety by default
+Сейчас проект в первую очередь решает такие задачи:
+- единый слой read-инструментов по рекламным платформам
+- безопасные сценарии `preview -> confirm` для write-операций
+- веб-панель оператора под `Meta Ads`
+- безопасный режим без реальных изменений по умолчанию
 
-## Status
+## Текущий статус
 
-What is working now:
-- MCP stdio server starts locally
-- Meta Ads live read path is implemented
-- Google Ads read path scaffold is present and ready for credentials
-- TikTok Ads and Yandex Direct stay in safe preview mode until live clients are finished
-- Meta web UI is available as an internal operator dashboard
+Что уже работает:
+- локальный MCP stdio-сервер запускается
+- live-read путь для `Meta Ads` реализован
+- каркас для `Google Ads` уже есть и ждёт credentials
+- `TikTok Ads` и `Yandex Direct` пока остаются в безопасном preview-режиме
+- есть внутренняя веб-панель оператора для `Meta Ads`
 
-What is intentionally still restricted:
-- real mutation execution is not enabled by default
-- safety policy enforces `simulated_no_write`
-- production auth, tenancy, billing, and client isolation are not finished yet
+Что пока намеренно ограничено:
+- реальные изменения в кабинетах не включены по умолчанию
+- политика безопасности держит проект в режиме `simulated_no_write`
+- production auth, мультиарендность, биллинг и клиентская изоляция ещё не завершены
 
-## Repository layout
+## Структура репозитория
 
-- [src/ad_mcp](src/ad_mcp) - application code
-- [config/policies/safety.example.yaml](config/policies/safety.example.yaml) - safe default policy
-- [ads_config.example.yaml](ads_config.example.yaml) - example provider connection config
-- [CONNECTING.md](CONNECTING.md) - provider setup notes
-- [TESTING.md](TESTING.md) - tester quickstart for local Codex and hosted web UI
-- [DEPLOYING.md](DEPLOYING.md) - server deployment notes
-- [CREATIVE_BRIEF_RU.md](CREATIVE_BRIEF_RU.md) - internal brief/reference
+- [src/ad_mcp](src/ad_mcp) - основной код приложения
+- [config/policies/safety.example.yaml](config/policies/safety.example.yaml) - безопасная политика по умолчанию
+- [ads_config.example.yaml](ads_config.example.yaml) - пример конфига подключений провайдеров
+- [CONNECTING.md](CONNECTING.md) - как подключать кабинеты и секреты
+- [TESTING.md](TESTING.md) - как тестировать проект локально и через hosted UI
+- [DEPLOYING.md](DEPLOYING.md) - как разворачивать проект на сервере
+- [CHECKLIST_RU.md](CHECKLIST_RU.md) - простой пошаговый чеклист для коллеги без техподготовки
+- [CREATIVE_BRIEF_RU.md](CREATIVE_BRIEF_RU.md) - внутренний справочный файл
 
-## Local setup
+## Локальный запуск
 
 ### Windows
 
 ```powershell
-cd "<project-path>\\mcp-for-ads"
+cd "<путь-к-проекту>\\mcp-for-ads"
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev,google,meta]"
 ```
@@ -50,67 +51,74 @@ python3.11 -m venv .venv
 ./.venv/bin/python -m pip install -e ".[dev,google,meta]"
 ```
 
-## Environment files
+## Локальные рабочие файлы
 
-The project loads `.env` from the repository root and expands variables inside `ads_config.yaml`.
+Проект читает `.env` из корня репозитория и подставляет переменные внутрь `ads_config.yaml`.
 
-Start from [.env.example](.env.example) and create a local `.env`.
+Что нужно сделать:
+- взять [.env.example](.env.example)
+- создать локальный `.env`
+- взять [ads_config.example.yaml](ads_config.example.yaml)
+- создать локальный `ads_config.yaml`
 
-Important:
-- keep `.env` local
-- keep `ads_config.yaml` local
-- do not commit secrets, tokens, app secrets, or refresh tokens into Git
+Важно:
+- `.env` хранить только локально
+- `ads_config.yaml` хранить только локально
+- не коммитить в Git реальные токены, app secrets и refresh tokens
 
-## Running the MCP server
+## Запуск MCP-сервера
 
 ```powershell
-cd "<project-path>\\mcp-for-ads"
+cd "<путь-к-проекту>\\mcp-for-ads"
 .\.venv\Scripts\python.exe -m ad_mcp.server
 ```
 
-or:
+или:
 
 ```powershell
 ad-mcp-server
 ```
 
-The server is designed to be started by an MCP client such as Codex, not manually typed into an interactive shell.
+Важно:
+сервер рассчитан на запуск через MCP-клиент, например `Codex`, а не на ручной ввод команд в интерактивной консоли.
 
-## Running the Meta web UI
+## Запуск веб-панели Meta
 
-Default bind:
+Значения по умолчанию:
 - host: `127.0.0.1`
 - port: `8765`
 
-You can override these with:
+При необходимости переопределяются переменными:
 - `AD_MCP_WEB_HOST`
 - `AD_MCP_WEB_PORT`
 
-Start locally:
+Локальный запуск:
 
 ```powershell
-cd "<project-path>\\mcp-for-ads"
+cd "<путь-к-проекту>\\mcp-for-ads"
 .\.venv\Scripts\python.exe -m ad_mcp.web.server
 ```
 
-Open:
+После запуска открыть:
 - [http://127.0.0.1:8765](http://127.0.0.1:8765)
 
-Health check:
+Проверка health:
 - [http://127.0.0.1:8765/healthz](http://127.0.0.1:8765/healthz)
 
-## Tester handoff
+## Как передавать проект тестеру
 
-If someone else needs to test the project, give them:
-- the repository
-- a local `.env`
-- a local `ads_config.yaml`
+Если кто-то другой должен проверить проект, ему нужно передать:
+- сам репозиторий
+- локальный `.env`
+- локальный `ads_config.yaml`
 
-They should then follow [TESTING.md](TESTING.md).
+Дальше он может идти по:
+- [TESTING.md](TESTING.md)
+- [CHECKLIST_RU.md](CHECKLIST_RU.md)
 
-## Current Meta tool coverage
+## Что уже покрыто по Meta Ads
 
-Read-oriented tools already added include:
+Read-инструменты, которые уже есть:
 - `get_account_summary`
 - `list_account_objects`
 - `get_account_object`
@@ -148,7 +156,7 @@ Read-oriented tools already added include:
 - `get_tracking_specs`
 - `get_launch_checklist`
 
-Write-preview tools include:
+Preview-инструменты для write-сценариев:
 - `clone_campaign_preview`
 - `clone_adset_preview`
 - `clone_ad_preview`
@@ -175,51 +183,50 @@ Write-preview tools include:
 - `scale_winners_by_rule_preview`
 - `archive_entities_preview`
 
-## Safety defaults
+## Текущие безопасные ограничения
 
-Current safe defaults:
-- unknown accounts are blocked
-- mutation policy is constrained by [config/policies/safety.example.yaml](config/policies/safety.example.yaml)
-- execution mode is `simulated_no_write`
-- audit logging writes to `logs/audit.jsonl`
+По умолчанию проект делает вот что:
+- блокирует неизвестные аккаунты
+- ограничивает mutation-сценарии через [config/policies/safety.example.yaml](config/policies/safety.example.yaml)
+- работает в режиме `simulated_no_write`
+- пишет аудит в `logs/audit.jsonl`
 
-For hosting, do not expose preview/write endpoints to the public internet without:
-- access control
+Если выкладывать проект наружу, нельзя открывать preview/write endpoints без:
+- контроля доступа
 - reverse proxy
-- IP filtering or auth
-- proper secret storage
+- IP-фильтрации или авторизации
+- нормального хранения секретов
 
-## Hosting notes
+## Хостинг
 
-Recommended baseline:
-- Ubuntu 22.04 LTS or 24.04 LTS
+Рекомендуемая база:
+- Ubuntu 22.04 LTS или 24.04 LTS
 - Python 3.11
 - systemd
 - Nginx reverse proxy
-- `.env` stored on server only
-- `ads_config.yaml` stored on server only
+- `.env` только на сервере
+- `ads_config.yaml` только на сервере
 
-For a deployment-oriented walkthrough, see [DEPLOYING.md](DEPLOYING.md).
+Подробный сценарий деплоя:
+- [DEPLOYING.md](DEPLOYING.md)
 
-## Tests
-
-Run tests with:
+## Тесты
 
 ```powershell
-cd "<project-path>\\mcp-for-ads"
+cd "<путь-к-проекту>\\mcp-for-ads"
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-## Current security posture
+## Текущая безопасность проекта
 
-Good right now:
-- secrets are expected from environment variables
-- tracked example files are present
-- local secret files are ignored by Git
-- web UI binds to localhost by default
+Что уже хорошо:
+- секреты ожидаются через переменные окружения
+- в репозитории лежат только example-файлы
+- локальные секретные файлы игнорируются Git
+- веб-панель по умолчанию биндингится на localhost
 
-Still important before real production use:
-- add auth in front of the web UI
-- separate per-client secrets storage
-- rotate any tokens that were ever pasted into chat
-- move from single-project local config to tenant-aware storage
+Что ещё нужно сделать перед нормальным production:
+- поставить auth перед веб-панелью
+- разделить хранение секретов по клиентам
+- перевыпустить токены, если они когда-либо отправлялись в чат
+- со временем перейти от локального конфига к tenant-aware storage

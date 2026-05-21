@@ -1,40 +1,41 @@
-# Deploying mcp-for-ads
+# Развёртывание mcp-for-ads
 
-This project can be hosted for internal operator use today, but it is not yet a public multi-tenant SaaS.
+Этот проект уже можно размещать для внутренней команды, но это ещё не публичный SaaS для множества клиентов.
 
-## Recommended target
+## Куда лучше разворачивать
 
-- Ubuntu 22.04 LTS or Ubuntu 24.04 LTS
+Рекомендуемая база:
+- Ubuntu 22.04 LTS или Ubuntu 24.04 LTS
 - Python 3.11
 - Nginx
 - systemd
-- private server or VPS
+- VPS или приватный сервер
 
-## What to host right now
+## Что уже можно хостить
 
-Safe to host now:
-- MCP server for trusted internal clients
-- Meta web UI for internal operator usage
+Безопасно размещать уже сейчас:
+- MCP-сервер для доверенных внутренних клиентов
+- веб-панель Meta для внутренней работы команды
 
-Not ready for public anonymous access:
-- preview/write endpoints without auth
-- multi-client shared deployment without tenant isolation
-- public internet exposure without reverse proxy and access control
+Пока не готово для анонимного публичного доступа:
+- preview/write endpoints без auth
+- многоарендное размещение для разных клиентов без изоляции
+- открытый интернет-доступ без reverse proxy и контроля доступа
 
-## Server layout
+## Рекомендуемая структура на сервере
 
-Suggested application path:
+Папка приложения:
 
 ```bash
 /opt/mcp-for-ads
 ```
 
-Suggested runtime files:
+Рабочие файлы:
 - `/opt/mcp-for-ads/.env`
 - `/opt/mcp-for-ads/ads_config.yaml`
 - `/opt/mcp-for-ads/logs/audit.jsonl`
 
-## Initial install
+## Первичная установка
 
 ```bash
 sudo apt update
@@ -43,7 +44,7 @@ sudo mkdir -p /opt/mcp-for-ads
 sudo chown -R $USER:$USER /opt/mcp-for-ads
 ```
 
-Copy the repository contents into `/opt/mcp-for-ads`, then:
+После этого скопируй репозиторий в `/opt/mcp-for-ads`, а затем:
 
 ```bash
 cd /opt/mcp-for-ads
@@ -51,11 +52,11 @@ python3.11 -m venv .venv
 ./.venv/bin/python -m pip install -e ".[dev,google,meta]"
 ```
 
-## Environment setup
+## Настройка окружения
 
-Create `.env` from `.env.example` and fill in real values.
+Создай `.env` на основе `.env.example` и заполни его реальными значениями.
 
-Recommended production values:
+Рекомендуемые production-переменные:
 
 ```dotenv
 AD_MCP_ENV=production
@@ -67,32 +68,32 @@ AD_MCP_WEB_HOST=127.0.0.1
 AD_MCP_WEB_PORT=8765
 ```
 
-Keep:
-- `.env` server-only
-- `ads_config.yaml` server-only
+Важно:
+- `.env` хранить только на сервере
+- `ads_config.yaml` хранить только на сервере
 
-## Run the web UI manually
+## Ручной запуск веб-панели
 
 ```bash
 cd /opt/mcp-for-ads
 ./.venv/bin/python -m ad_mcp.web.server
 ```
 
-Health endpoint:
+Проверка health:
 
 ```bash
 curl http://127.0.0.1:8765/healthz
 ```
 
-## systemd service example
+## Пример systemd-сервиса
 
-Create:
+Создать файл:
 
 ```bash
 /etc/systemd/system/mcp-for-ads-web.service
 ```
 
-Example:
+Пример:
 
 ```ini
 [Unit]
@@ -113,7 +114,7 @@ Group=www-data
 WantedBy=multi-user.target
 ```
 
-Then:
+После создания:
 
 ```bash
 sudo systemctl daemon-reload
@@ -121,15 +122,15 @@ sudo systemctl enable --now mcp-for-ads-web
 sudo systemctl status mcp-for-ads-web
 ```
 
-## Nginx reverse proxy example
+## Пример Nginx reverse proxy
 
-Create:
+Создать файл:
 
 ```bash
 /etc/nginx/sites-available/mcp-for-ads
 ```
 
-Example:
+Пример:
 
 ```nginx
 server {
@@ -146,7 +147,7 @@ server {
 }
 ```
 
-Then:
+После этого:
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/mcp-for-ads /etc/nginx/sites-enabled/mcp-for-ads
@@ -154,21 +155,21 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-## Security checklist
+## Минимальный чеклист безопасности
 
-Before public hosting, do at least this:
-- use firewall rules
-- keep web app bound to `127.0.0.1`
-- expose only through Nginx
-- add basic auth, VPN, or IP allowlisting
-- keep secrets out of Git
-- rotate any tokens that were ever pasted into chat
-- monitor `logs/audit.jsonl`
+Перед открытием проекта наружу нужно хотя бы:
+- включить firewall
+- оставить веб-приложение на `127.0.0.1`
+- публиковать его только через Nginx
+- добавить basic auth, VPN или IP allowlist
+- не хранить секреты в Git
+- перевыпустить токены, если они когда-либо были в переписке
+- следить за `logs/audit.jsonl`
 
-## Current practical recommendation
+## Практический текущий режим
 
-Best current deployment mode:
-- internal operator dashboard
-- internal MCP server
-- restricted access
-- no real writes until provider write paths and auth controls are finished
+На сегодня лучший режим использования:
+- внутренняя панель оператора
+- внутренний MCP-сервер
+- ограниченный доступ
+- без реальных write-операций, пока не завершены auth controls и live write paths

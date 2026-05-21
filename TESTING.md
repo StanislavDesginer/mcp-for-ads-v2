@@ -1,39 +1,39 @@
-# Testing Guide
+# Как тестировать проект
 
-This repository can be tested in two modes:
+Этот репозиторий можно проверять в двух режимах:
 
-1. hosted web UI only
-2. local Codex + MCP tools
+1. только через уже поднятый веб-интерфейс
+2. локально через Codex + MCP
 
-## What a tester needs from the project owner
+## Что тестеру нужно получить от владельца проекта
 
-For live Meta requests, the tester needs two local files that are not committed:
+Для live-запросов к `Meta Ads` тестеру нужны два файла, которых нет в Git:
 - `.env`
 - `ads_config.yaml`
 
-Without them:
-- the repository still installs
-- tests still run
-- hosted UI still opens
-- but live provider calls will fail auth or stay on placeholder values
+Без них:
+- проект всё равно установится
+- тесты всё равно можно запустить
+- hosted UI всё равно откроется
+- но реальные запросы будут падать по auth или работать на placeholder-значениях
 
-## Fastest way to test right now
+## Самый быстрый способ проверить проект
 
-Use the hosted panel:
+Открыть уже поднятую панель:
 - [http://77.240.38.131](http://77.240.38.131)
 
-This is the best option for a quick smoke test of:
-- Meta dashboard loading
-- diagnostics screens
-- account summaries
-- web UI behavior
+Так можно быстро проверить:
+- открывается ли Meta dashboard
+- работают ли diagnostics-страницы
+- грузятся ли account summaries
+- не разваливается ли интерфейс
 
-## Local setup for a tester
+## Локальная установка для тестера
 
 ### Windows
 
 ```powershell
-cd "<project-path>\\mcp-for-ads"
+cd "<путь-к-проекту>\\mcp-for-ads"
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev,google,meta]"
 ```
@@ -46,9 +46,9 @@ python3.11 -m venv .venv
 ./.venv/bin/python -m pip install -e ".[dev,google,meta]"
 ```
 
-## Local runtime files
+## Куда положить рабочие файлы
 
-Put the local files in the repository root:
+Локальные файлы должны лежать в корне проекта:
 
 ```text
 mcp-for-ads/
@@ -58,38 +58,37 @@ mcp-for-ads/
   src/
 ```
 
-Start from these tracked examples:
+За основу можно взять:
 - [ads_config.example.yaml](ads_config.example.yaml)
 - [.env.example](.env.example)
 
-Provider credential structure is documented in [CONNECTING.md](CONNECTING.md).
+Структура credentials описана в:
+- [CONNECTING.md](CONNECTING.md)
 
-## Local web UI
-
-Run:
+## Локальный запуск веб-панели
 
 ```powershell
-cd "<project-path>\\mcp-for-ads"
+cd "<путь-к-проекту>\\mcp-for-ads"
 .\.venv\Scripts\python.exe -m ad_mcp.web.server
 ```
 
-Open:
+После запуска открыть:
 - [http://127.0.0.1:8765](http://127.0.0.1:8765)
 - [http://127.0.0.1:8765/healthz](http://127.0.0.1:8765/healthz)
 
-## Local Codex + MCP setup
+## Локальная работа через Codex + MCP
 
-The repository includes an example Codex MCP config:
+В репозитории есть пример MCP-конфига для Codex:
 - [.codex/config.example.toml](.codex/config.example.toml)
 
-To use it:
-1. copy the example into your own Codex config location
-2. replace the Windows path placeholders with your real local project path
-3. restart Codex in the project folder
+Что нужно сделать:
+1. скопировать этот пример в своё место для конфигов Codex
+2. заменить placeholder-путь на свой локальный путь к проекту
+3. перезапустить Codex в папке проекта
 
-## Example Codex prompts
+## Примеры запросов в Codex
 
-Once MCP is connected, a tester can ask:
+Когда MCP уже подключён, тестер может задавать такие команды:
 
 ```text
 Use MCP server ads and show list_accounts for provider meta_ads.
@@ -107,19 +106,19 @@ Use MCP server ads and call find_wasting_spend for provider meta_ads, account_id
 Use MCP server ads and call get_top_performers for provider meta_ads, account_id act_1746501262698286, end_date 2026-05-21.
 ```
 
-## What a tester can validate
+## Что тестер может проверить
 
-- project installs cleanly
-- MCP server starts
-- Meta accounts resolve from local config
-- web UI loads
-- diagnostics endpoints work
-- read tools return real Meta data
-- preview write tools return safe preview payloads
+- проект ставится без развала
+- MCP server запускается
+- Meta accounts подхватываются из локального конфига
+- web UI открывается
+- diagnostics endpoints отвечают
+- read-tools возвращают реальные Meta данные
+- preview write tools возвращают безопасные preview payloads
 
-## Safety notes for testers
+## Важные правила для тестера
 
-- keep `.env` local
-- keep `ads_config.yaml` local
-- do not commit live tokens or app secrets
-- rotate any tokens that were previously pasted into chats
+- `.env` хранить только локально
+- `ads_config.yaml` хранить только локально
+- не коммитить live tokens и app secrets
+- перевыпускать токены, если они когда-либо отправлялись в чат

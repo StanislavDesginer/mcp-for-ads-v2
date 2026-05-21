@@ -1,34 +1,34 @@
-# How to connect mcp-for-ads
+# Как подключать mcp-for-ads
 
-## Main config files
+## Главные рабочие файлы
 
-This project uses two local runtime files:
+Проект использует два локальных runtime-файла:
 
 - `ads_config.yaml`
 - `.env`
 
-These files are intentionally not committed with real secrets.
+Они специально не хранятся в Git с реальными секретами.
 
-## What a tester needs from the project owner
+## Что нужно получить от владельца проекта
 
-To run real provider requests, the tester needs:
-- a local `ads_config.yaml`
-- a local `.env`
-- active platform credentials
+Чтобы работали реальные запросы к рекламным кабинетам, тестеру нужны:
+- локальный `ads_config.yaml`
+- локальный `.env`
+- реальные credentials нужной платформы
 
-Without these files:
-- the repository still opens
-- tests still run
-- the hosted UI still opens
-- but live provider calls will stay on placeholder values or fail auth
+Без этих файлов:
+- репозиторий всё равно откроется
+- тесты всё равно можно запустить
+- hosted UI всё равно откроется
+- но live provider calls будут падать по auth или работать на заглушках
 
-For Codex-based testing, the tester also needs a local Codex MCP config.
-Use the example file:
+Если тестирование идёт через Codex, нужен ещё локальный MCP-конфиг.
+Для этого в репозитории есть пример:
 - [.codex/config.example.toml](.codex/config.example.toml)
 
-## Local file placement
+## Куда класть локальные файлы
 
-Put both local runtime files in the project root:
+Оба runtime-файла должны лежать в корне проекта:
 
 ```text
 mcp-for-ads/
@@ -41,12 +41,12 @@ mcp-for-ads/
 
 ## ads_config.yaml
 
-The project loads provider connections from `ads_config.yaml`.
+Подключения к рекламным платформам читаются из `ads_config.yaml`.
 
-Start from:
+За основу бери:
 - [ads_config.example.yaml](ads_config.example.yaml)
 
-Meta example:
+Пример для Meta:
 
 ```yaml
 providers:
@@ -64,12 +64,12 @@ providers:
 
 ## .env
 
-The project expands environment variables inside `ads_config.yaml`.
+Переменные внутри `ads_config.yaml` подставляются из `.env`.
 
-Start from:
+За основу бери:
 - [.env.example](.env.example)
 
-Example:
+Пример:
 
 ```dotenv
 AD_MCP_ENV=development
@@ -84,24 +84,24 @@ META_EXAMPLE_APP_SECRET=your-meta-app-secret
 META_EXAMPLE_ACCESS_TOKEN=your-meta-access-token
 ```
 
-## Provider credential requirements
+## Какие данные нужны по платформам
 
 ### Meta Ads
 
-Required per account:
+Обязательно на каждый кабинет:
 - `account_id`
 - `app_id`
 - `app_secret`
 - `access_token`
 
-Optional:
+Дополнительно:
 - `api_version`
 - `action_metrics`
 - `video_metrics`
 
 ### Google Ads
 
-Required per account:
+Обязательно на каждый кабинет:
 - `account_id`
 - `customer_id`
 - `login_customer_id`
@@ -112,7 +112,7 @@ Required per account:
 
 ### TikTok Ads
 
-Required per account:
+Обязательно на каждый кабинет:
 - `account_id`
 - `advertiser_id`
 - `app_id`
@@ -121,33 +121,33 @@ Required per account:
 
 ### Yandex Direct
 
-Required per account:
+Обязательно на каждый кабинет:
 - `account_id`
 - `login`
 - `access_token`
 
-## How runtime config is resolved
+## Как проект читает конфиг
 
-The server loads configuration in this order:
+Порядок загрузки такой:
 
-1. root `ads_config.yaml`
-2. root `ads_config.example.yaml`
-3. provider examples in `config/providers/*.example.yaml` as fallback
+1. корневой `ads_config.yaml`
+2. корневой `ads_config.example.yaml`
+3. fallback на provider example-файлы из `config/providers/*.example.yaml`
 
-Environment variables inside YAML are expanded from the root `.env`.
+Переменные внутри YAML подставляются из корневого `.env`.
 
 ## Hosted web UI
 
-If the owner already deployed the web UI, a tester can validate the project without local MCP setup by opening:
+Если проект уже развернули на сервере, тестер может проверить интерфейс без локального MCP, просто открыв:
 - [http://77.240.38.131](http://77.240.38.131)
 
-This is useful for:
-- UI smoke testing
-- diagnostics checks
-- verifying deployed Meta account visibility
+Это удобно для:
+- smoke test интерфейса
+- диагностики
+- проверки, видит ли сервер Meta аккаунты
 
-## Safety notes
+## Важные замечания по безопасности
 
-- unknown accounts are blocked by default
-- preview/write flows are still constrained by [config/policies/safety.example.yaml](config/policies/safety.example.yaml)
-- real secrets should stay only in local `.env` and local `ads_config.yaml`
+- неизвестные аккаунты блокируются по умолчанию
+- preview/write сценарии ограничиваются [config/policies/safety.example.yaml](config/policies/safety.example.yaml)
+- реальные секреты должны жить только в локальном `.env` и локальном `ads_config.yaml`
