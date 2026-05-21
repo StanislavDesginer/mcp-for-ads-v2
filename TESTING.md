@@ -7,9 +7,11 @@
 
 ## Что тестеру нужно получить от владельца проекта
 
-Для live-запросов к `Meta Ads` тестеру нужны два файла, которых нет в Git:
+Если проект клонируется из приватного командного репозитория, в нём уже могут лежать:
 - `.env`
 - `ads_config.yaml`
+
+Если этих файлов нет, их нужно отдельно получить у владельца проекта.
 
 Без них:
 - проект всё равно установится
@@ -46,9 +48,9 @@ python3.11 -m venv .venv
 ./.venv/bin/python -m pip install -e ".[dev,google,meta]"
 ```
 
-## Куда положить рабочие файлы
+## Куда смотрит проект
 
-Локальные файлы должны лежать в корне проекта:
+Рабочие файлы должны лежать в корне проекта:
 
 ```text
 mcp-for-ads/
@@ -57,13 +59,6 @@ mcp-for-ads/
   pyproject.toml
   src/
 ```
-
-За основу можно взять:
-- [ads_config.example.yaml](ads_config.example.yaml)
-- [.env.example](.env.example)
-
-Структура credentials описана в:
-- [CONNECTING.md](CONNECTING.md)
 
 ## Локальный запуск веб-панели
 
@@ -102,10 +97,6 @@ Use MCP server ads and call get_account_summary for provider meta_ads and accoun
 Use MCP server ads and call find_wasting_spend for provider meta_ads, account_id act_1746501262698286, start_date 2026-04-01, end_date 2026-05-21.
 ```
 
-```text
-Use MCP server ads and call get_top_performers for provider meta_ads, account_id act_1746501262698286, end_date 2026-05-21.
-```
-
 ## Что тестер может проверить
 
 - проект ставится без развала
@@ -114,11 +105,4 @@ Use MCP server ads and call get_top_performers for provider meta_ads, account_id
 - web UI открывается
 - diagnostics endpoints отвечают
 - read-tools возвращают реальные Meta данные
-- preview write tools возвращают безопасные preview payloads
-
-## Важные правила для тестера
-
-- `.env` хранить только локально
-- `ads_config.yaml` хранить только локально
-- не коммитить live tokens и app secrets
-- перевыпускать токены, если они когда-либо отправлялись в чат
+- preview write tools возвращают safe preview payloads
