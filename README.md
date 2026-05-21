@@ -28,6 +28,8 @@ What is intentionally still restricted:
 - [config/policies/safety.example.yaml](config/policies/safety.example.yaml) - safe default policy
 - [ads_config.example.yaml](ads_config.example.yaml) - example provider connection config
 - [CONNECTING.md](CONNECTING.md) - provider setup notes
+- [TESTING.md](TESTING.md) - tester quickstart for local Codex and hosted web UI
+- [DEPLOYING.md](DEPLOYING.md) - server deployment notes
 - [CREATIVE_BRIEF_RU.md](CREATIVE_BRIEF_RU.md) - internal brief/reference
 
 ## Local setup
@@ -35,7 +37,7 @@ What is intentionally still restricted:
 ### Windows
 
 ```powershell
-cd "C:\Users\Станислав\Documents\New project\mcp-for-ads"
+cd "<project-path>\\mcp-for-ads"
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev,google,meta]"
 ```
@@ -62,7 +64,7 @@ Important:
 ## Running the MCP server
 
 ```powershell
-cd "C:\Users\Станислав\Documents\New project\mcp-for-ads"
+cd "<project-path>\\mcp-for-ads"
 .\.venv\Scripts\python.exe -m ad_mcp.server
 ```
 
@@ -87,15 +89,24 @@ You can override these with:
 Start locally:
 
 ```powershell
-cd "C:\Users\Станислав\Documents\New project\mcp-for-ads"
+cd "<project-path>\\mcp-for-ads"
 .\.venv\Scripts\python.exe -m ad_mcp.web.server
 ```
 
 Open:
-[http://127.0.0.1:8765](http://127.0.0.1:8765)
+- [http://127.0.0.1:8765](http://127.0.0.1:8765)
 
 Health check:
-[http://127.0.0.1:8765/healthz](http://127.0.0.1:8765/healthz)
+- [http://127.0.0.1:8765/healthz](http://127.0.0.1:8765/healthz)
+
+## Tester handoff
+
+If someone else needs to test the project, give them:
+- the repository
+- a local `.env`
+- a local `ads_config.yaml`
+
+They should then follow [TESTING.md](TESTING.md).
 
 ## Current Meta tool coverage
 
@@ -195,7 +206,7 @@ For a deployment-oriented walkthrough, see [DEPLOYING.md](DEPLOYING.md).
 Run tests with:
 
 ```powershell
-cd "C:\Users\Станислав\Documents\New project\mcp-for-ads"
+cd "<project-path>\\mcp-for-ads"
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 

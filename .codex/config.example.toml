@@ -1,0 +1,19 @@
+[mcp_servers.ads]
+command = "C:\\<project-path>\\mcp-for-ads\\.venv\\Scripts\\python.exe"
+args = ["-m", "ad_mcp.server"]
+cwd = "C:\\<project-path>\\mcp-for-ads"
+startup_timeout_sec = 20.0
+tool_timeout_sec = 120.0
+enabled = true
+
+[mcp_servers.ads.tools.list_providers]
+approval_mode = "approve"
+
+[mcp_servers.ads.tools.list_accounts]
+approval_mode = "approve"
+
+[mcp_servers.ads.tools.get_account_summary]
+approval_mode = "approve"
+
+[mcp_servers.ads.tools.get_billing_summary]
+approval_mode = "approve"
