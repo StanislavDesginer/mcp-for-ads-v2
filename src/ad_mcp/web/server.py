@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -13,6 +14,7 @@ from ad_mcp.web.service import MetaDashboardService
 
 WEB_ROOT = Path(__file__).resolve().parent
 STATIC_ROOT = WEB_ROOT / "static"
+LOGGER = logging.getLogger(__name__)
 
 
 class AdsWebHandler(BaseHTTPRequestHandler):
@@ -44,6 +46,11 @@ class AdsWebHandler(BaseHTTPRequestHandler):
 
     def _error(self, message: str, status: HTTPStatus = HTTPStatus.BAD_REQUEST) -> None:
         self._send_json({"error": message}, status)
+
+    def _unexpected_error(self, operation: str, exc: Exception) -> None:
+        LOGGER.exception("Unhandled web UI error during %s %s", operation, self.path)
+        message = str(exc).strip() or "Непредвиденная ошибка web-layer."
+        self._error(message, HTTPStatus.BAD_GATEWAY)
 
     def _query(self) -> dict[str, str]:
         parsed = urlparse(self.path)
@@ -101,8 +108,16 @@ class AdsWebHandler(BaseHTTPRequestHandler):
                         limit=int(query.get("limit", "10")),
                     )
                 )
-        except (AdMCPError, ValueError, KeyError, json.JSONDecodeError) as exc:
+            if route == "/api/meta/config-diagnostics":
+                return self._send_json(self.service.config_diagnostics())
+            if route == "/api/meta/auth-diagnostics":
+                return self._send_json(self.service.auth_diagnostics())
+            if route == "/api/meta/debug-health":
+                return self._send_json(self.service.diagnostics_health())
+        except (AdMCPError, ValueError, KeyError, json.JSONDecodeError, RuntimeError) as exc:
             return self._error(str(exc))
+        except Exception as exc:  # noqa: BLE001
+            return self._unexpected_error("GET", exc)
 
         self._error("Route not found.", HTTPStatus.NOT_FOUND)
 
@@ -136,8 +151,10 @@ class AdsWebHandler(BaseHTTPRequestHandler):
             if route == "/api/meta/preview/pause-ads":
                 ids = payload.get("ids") or []
                 return self._send_json(self.service.preview_pause_ads(ids=[str(item) for item in ids], account_id=payload.get("account_id")))
-        except (AdMCPError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        except (AdMCPError, ValueError, KeyError, json.JSONDecodeError, RuntimeError) as exc:
             return self._error(str(exc))
+        except Exception as exc:  # noqa: BLE001
+            return self._unexpected_error("POST", exc)
 
         self._error("Route not found.", HTTPStatus.NOT_FOUND)
 

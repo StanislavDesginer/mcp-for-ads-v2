@@ -1,188 +1,282 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Meta Ads Console</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <title>mcp-for-ads · Операторская консоль</title>
   <link rel="stylesheet" href="/assets/app.css">
 </head>
 <body>
-  <div class="page-bg"></div>
+  <div id="toast-root" class="toast-root" aria-live="polite" aria-atomic="true"></div>
 
-  <!-- Toast notifications (injected by JS) -->
-  <div id="toast-root" class="toast-root"></div>
-
-  <!-- Preview drawer overlay -->
-  <div class="preview-overlay" id="preview-overlay"></div>
-
-  <!-- Preview drawer (slides in from right) -->
-  <aside class="preview-drawer" id="preview-drawer">
-    <div class="drawer-head">
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+  <aside class="drawer" id="preview-drawer" aria-labelledby="drawer-title" aria-hidden="true">
+    <header class="drawer__header">
       <div>
-        <p class="eyebrow">Preview действия</p>
-        <h3 class="drawer-title" id="drawer-title">Предварительный просмотр</h3>
+        <p class="section-kicker">Preview action</p>
+        <h2 class="drawer__title" id="drawer-title">Предпросмотр действия</h2>
       </div>
-      <button class="drawer-close" id="drawer-close" aria-label="Закрыть">✕</button>
-    </div>
-    <div id="preview-risks" class="preview-risks"></div>
-    <pre id="preview-output" class="drawer-pre">Пока действий не было.</pre>
-    <div class="drawer-footer">
-      <span class="safe-badge">
-        <span class="status-dot status-dot-amber"></span>
-        Симуляция — реальных изменений нет
-      </span>
-      <button class="btn-copy" id="drawer-copy">Копировать JSON</button>
-    </div>
+      <button id="drawer-close" class="icon-button" type="button" aria-label="Закрыть панель">×</button>
+    </header>
+    <section id="drawer-risk-flags" class="drawer__risks"></section>
+    <section class="drawer__output-wrap">
+      <h3 class="drawer__subtitle">JSON-ответ</h3>
+      <pre id="drawer-json" class="drawer__json">{}</pre>
+    </section>
+    <footer class="drawer__footer">
+      <p class="drawer__note">Режим безопасного предпросмотра: реальных изменений в Meta Ads не выполняется.</p>
+      <button id="drawer-copy" class="btn btn--secondary" type="button">Копировать JSON</button>
+    </footer>
   </aside>
 
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand-block">
-        <p class="eyebrow">MCP Tools</p>
-        <h1>Meta Ads<br>Console</h1>
-        <p class="muted-copy">
-          Операторская панель. Диагностика, контроль и безопасные preview-действия.
+  <div class="layout">
+    <aside class="sidebar" aria-label="Навигация и действия">
+      <section class="sidebar-card brand-card">
+        <p class="section-kicker">mcp-for-ads</p>
+        <h1 class="brand-card__title">Meta Ads Operator Console</h1>
+        <p class="brand-card__description">
+          Внутренняя панель для диагностики рекламного кабинета и безопасных preview-действий.
         </p>
-      </div>
+      </section>
 
-      <nav class="side-nav">
-        <button class="nav-btn is-active" data-load="dashboard">Сводка кабинета</button>
-        <button class="nav-btn" data-load="structure">Структура кампаний</button>
-        <button class="nav-btn" data-load="issues">Проблемы доставки</button>
-        <button class="nav-btn" data-load="assets">Подключённые активы</button>
-        <button class="nav-btn" data-load="winners">Лучшие кампании</button>
-        <button class="nav-btn" data-load="waste">Слив без результата</button>
+      <nav class="sidebar-card nav-card" aria-label="Разделы">
+        <h2 class="sidebar-card__title">Разделы</h2>
+        <ul class="nav-list">
+          <li><button type="button" class="nav-button is-active" data-section="overview">Overview / dashboard</button></li>
+          <li><button type="button" class="nav-button" data-section="structure">Campaign structure</button></li>
+          <li><button type="button" class="nav-button" data-section="issues">Delivery issues</button></li>
+          <li><button type="button" class="nav-button" data-section="assets">Connected assets</button></li>
+          <li><button type="button" class="nav-button" data-section="performers">Top performers</button></li>
+          <li><button type="button" class="nav-button" data-section="no-result">No-result spend</button></li>
+          <li><button type="button" class="nav-button" data-section="diagnostics">Диагностика</button></li>
+        </ul>
       </nav>
 
-      <section class="side-panel">
-        <div class="panel-head">
-          <h2>Быстрые действия</h2>
-          <p>Preview-режим — без реальных изменений.</p>
+      <section class="sidebar-card actions-card" aria-label="Preview действия">
+        <header class="actions-card__header">
+          <h2 class="sidebar-card__title">Preview actions</h2>
+          <p class="actions-card__description">Формы ниже вызывают только preview-роуты без записи.</p>
+        </header>
+
+        <div class="action-tabs" role="tablist" aria-label="Тип preview-действия">
+          <button class="action-tab is-active" id="tab-clone" data-action-tab="clone" role="tab" aria-controls="panel-clone" aria-selected="true" type="button">Clone</button>
+          <button class="action-tab" id="tab-budget" data-action-tab="budget" role="tab" aria-controls="panel-budget" aria-selected="false" type="button">Budget</button>
+          <button class="action-tab" id="tab-pause" data-action-tab="pause" role="tab" aria-controls="panel-pause" aria-selected="false" type="button">Pause ads</button>
         </div>
 
-        <div class="action-tabs">
-          <button class="tab-btn is-active" data-tab="clone">Клон</button>
-          <button class="tab-btn" data-tab="budget">Бюджет</button>
-          <button class="tab-btn" data-tab="pause">Пауза</button>
-        </div>
+        <div class="action-tab-panels">
+          <section class="action-panel is-active" id="panel-clone" role="tabpanel" aria-labelledby="tab-clone">
+            <form id="form-clone" class="action-form">
+              <label class="form-field">
+                <span>ID исходной кампании</span>
+                <input type="text" name="source_campaign_id" placeholder="120243628303150308" required>
+              </label>
+              <label class="form-field">
+                <span>Новое название</span>
+                <input type="text" name="new_name" placeholder="Клон для теста">
+              </label>
+              <label class="form-field">
+                <span>Статус новой кампании</span>
+                <select name="status">
+                  <option value="PAUSED">PAUSED</option>
+                  <option value="ACTIVE">ACTIVE</option>
+                </select>
+              </label>
+              <label class="form-field">
+                <span>Дневной бюджет (USD)</span>
+                <input type="number" name="daily_budget" min="0" step="0.01" placeholder="20">
+              </label>
+              <label class="form-field">
+                <span>Lifetime budget (USD)</span>
+                <input type="number" name="lifetime_budget" min="0" step="0.01" placeholder="1000">
+              </label>
+              <button class="btn btn--primary submit-button" type="submit">Сформировать preview</button>
+            </form>
+          </section>
 
-        <div class="tab-panel is-active" data-panel="clone">
-          <form id="clone-form" class="action-form">
-            <label>
-              ID исходной кампании
-              <input name="source_campaign_id" placeholder="120243628303150308" required>
-            </label>
-            <label>
-              Новое название
-              <input name="new_name" placeholder="Клон для теста">
-            </label>
-            <label>
-              Дневной бюджет
-              <input name="daily_budget" type="number" step="0.01" placeholder="20">
-            </label>
-            <button type="submit" class="form-submit-btn">Сделать preview клона</button>
-          </form>
-        </div>
+          <section class="action-panel" id="panel-budget" role="tabpanel" aria-labelledby="tab-budget" hidden>
+            <form id="form-budget" class="action-form">
+              <label class="form-field">
+                <span>ID кампании</span>
+                <input type="text" name="campaign_id" placeholder="120243628303150308" required>
+              </label>
+              <label class="form-field">
+                <span>Новый дневной бюджет (USD)</span>
+                <input type="number" name="daily_budget" min="0" step="0.01" placeholder="35">
+              </label>
+              <label class="form-field">
+                <span>Новый lifetime budget (USD)</span>
+                <input type="number" name="lifetime_budget" min="0" step="0.01" placeholder="1200">
+              </label>
+              <label class="form-field">
+                <span>Ограничение spend cap (USD)</span>
+                <input type="number" name="spend_cap" min="0" step="0.01" placeholder="1500">
+              </label>
+              <label class="form-field">
+                <span>Изменение бюджета (%)</span>
+                <input type="number" name="budget_delta_percent" step="0.01" placeholder="15">
+              </label>
+              <button class="btn btn--primary submit-button" type="submit">Сформировать preview</button>
+            </form>
+          </section>
 
-        <div class="tab-panel" data-panel="budget">
-          <form id="budget-form" class="action-form">
-            <label>
-              ID кампании
-              <input name="campaign_id" placeholder="ID кампании" required>
-            </label>
-            <label>
-              Новый дневной бюджет
-              <input name="daily_budget" type="number" step="0.01" placeholder="35">
-            </label>
-            <label>
-              Изменение бюджета, %
-              <input name="budget_delta_percent" type="number" step="0.01" placeholder="15">
-            </label>
-            <button type="submit" class="form-submit-btn">Сделать preview бюджета</button>
-          </form>
-        </div>
-
-        <div class="tab-panel" data-panel="pause">
-          <form id="pause-form" class="action-form">
-            <label>
-              ID объявлений через запятую
-              <textarea name="ids" rows="4" placeholder="120237745682780308, 120237745682780309" required></textarea>
-            </label>
-            <button type="submit" class="form-submit-btn">Сделать preview паузы</button>
-          </form>
+          <section class="action-panel" id="panel-pause" role="tabpanel" aria-labelledby="tab-pause" hidden>
+            <form id="form-pause" class="action-form">
+              <label class="form-field">
+                <span>ID объявлений (через запятую или новую строку)</span>
+                <textarea name="ids" rows="5" placeholder="120237745682780308, 120237745682780309" required></textarea>
+              </label>
+              <button class="btn btn--primary submit-button" type="submit">Сформировать preview</button>
+            </form>
+          </section>
         </div>
       </section>
     </aside>
 
-    <main class="main">
-      <!-- Compact dashboard header -->
-      <header class="dash-header">
-        <div class="dash-header-left">
-          <p class="eyebrow">Кабинет Meta Ads</p>
-          <h2 class="dash-account-name" id="account-badge">Загрузка...</h2>
+    <main class="main" aria-live="polite">
+      <header class="topbar">
+        <div class="topbar__title-group">
+          <p class="section-kicker">Meta Ads account</p>
+          <h2 id="topbar-account-name">Загрузка аккаунта…</h2>
         </div>
-        <div class="dash-header-right">
-          <span class="refresh-time" id="refresh-time"></span>
-          <div class="hero-note">
-            <span class="status-dot" id="status-dot"></span>
-            <span id="status-label">Подключение...</span>
-          </div>
-          <button id="refresh-all" class="ghost-btn">↻ Обновить всё</button>
+        <div class="topbar__controls">
+          <label class="inline-field">
+            <span>Account ID (опционально)</span>
+            <input id="filter-account-id" type="text" placeholder="act_...">
+          </label>
+          <label class="inline-field">
+            <span>Дата отчёта</span>
+            <input id="filter-end-date" type="date">
+          </label>
+          <button id="apply-filters" type="button" class="btn btn--secondary">Применить</button>
+          <button id="refresh-all" type="button" class="btn btn--primary">Обновить всё</button>
+        </div>
+        <div class="topbar__status">
+          <span class="status-dot is-loading" id="status-dot" aria-hidden="true"></span>
+          <span id="status-text">Подключение…</span>
+          <span id="last-refresh-time" class="last-refresh-time"></span>
         </div>
       </header>
 
-      <section id="metrics" class="metric-grid"></section>
+      <section id="overview" class="content-section is-active" data-section-panel>
+        <header class="section-header">
+          <h3>Overview / dashboard</h3>
+          <p>Общие KPI кабинета, структура по статусам и быстрый снимок аккаунта.</p>
+        </header>
+        <div id="overview-metrics" class="metrics-grid"></div>
+        <div class="panel-grid panel-grid--two">
+          <article class="panel-card">
+            <h4>Паспорт аккаунта</h4>
+            <div id="overview-account"></div>
+          </article>
+          <article class="panel-card">
+            <h4>Статусы сущностей</h4>
+            <div id="overview-statuses"></div>
+          </article>
+        </div>
+      </section>
 
-      <section class="workspace-grid">
-        <article class="card card-wide" id="card-overview">
-          <div class="card-head">
-            <h3>Обзор кабинета</h3>
-            <p>Ключевая информация по аккаунту и статусам.</p>
-          </div>
-          <div id="account-overview"></div>
-        </article>
+      <section id="structure" class="content-section" data-section-panel hidden>
+        <header class="section-header">
+          <h3>Campaign structure</h3>
+          <p>Иерархия кампаний, ad set и объявлений по текущему кабинету.</p>
+        </header>
+        <div id="structure-content"></div>
+      </section>
 
-        <article class="card" id="card-issues">
-          <div class="card-head">
-            <h3>Проблемы доставки</h3>
-            <p>Что сейчас мешает показам и одобрению.</p>
-          </div>
-          <div id="issues-list"></div>
-        </article>
+      <section id="issues" class="content-section" data-section-panel hidden>
+        <header class="section-header">
+          <h3>Delivery issues</h3>
+          <p>Проблемы доставки и модерации, требующие реакции оператора.</p>
+        </header>
+        <div id="issues-content"></div>
+      </section>
 
-        <article class="card" id="card-assets">
-          <div class="card-head">
-            <h3>Подключённые активы</h3>
-            <p>Страницы, Instagram, пиксели и конверсии.</p>
-          </div>
-          <div id="assets-list"></div>
-        </article>
+      <section id="assets" class="content-section" data-section-panel hidden>
+        <header class="section-header">
+          <h3>Connected assets</h3>
+          <p>Связанные страницы, Instagram, пиксели и конверсии.</p>
+        </header>
+        <div id="assets-content"></div>
+      </section>
 
-        <article class="card card-wide" id="card-structure">
-          <div class="card-head">
-            <h3>Структура кампаний</h3>
-            <p>Быстрый обзор кампаний, адсетов и объявлений.</p>
-          </div>
-          <div id="campaign-structure"></div>
-        </article>
+      <section id="performers" class="content-section" data-section-panel hidden>
+        <header class="section-header">
+          <h3>Top performers</h3>
+          <p>Лучшие сущности по эффективности за выбранное окно.</p>
+        </header>
+        <div class="section-filter">
+          <label class="inline-field">
+            <span>Уровень</span>
+            <select id="performers-level">
+              <option value="campaign">campaign</option>
+              <option value="adset">adset</option>
+              <option value="ad">ad</option>
+            </select>
+          </label>
+          <label class="inline-field">
+            <span>Метрика</span>
+            <select id="performers-metric">
+              <option value="cost_per_result">cost_per_result</option>
+              <option value="spend">spend</option>
+              <option value="ctr">ctr</option>
+            </select>
+          </label>
+          <label class="inline-field">
+            <span>Lookback (дней)</span>
+            <input id="performers-lookback" type="number" min="1" max="90" value="7">
+          </label>
+          <button id="performers-refresh" type="button" class="btn btn--secondary">Обновить раздел</button>
+        </div>
+        <div id="performers-content"></div>
+      </section>
 
-        <article class="card" id="card-winners">
-          <div class="card-head">
-            <h3>Лучшие кампании</h3>
-            <p>Топ по эффективности за последнее окно.</p>
-          </div>
-          <div id="winners-list"></div>
-        </article>
+      <section id="no-result" class="content-section" data-section-panel hidden>
+        <header class="section-header">
+          <h3>No-result spend</h3>
+          <p>Сущности с расходом без конверсий для приоритезации проверок.</p>
+        </header>
+        <div class="section-filter">
+          <label class="inline-field">
+            <span>Уровень</span>
+            <select id="waste-level">
+              <option value="ad">ad</option>
+              <option value="adset">adset</option>
+              <option value="campaign">campaign</option>
+            </select>
+          </label>
+          <label class="inline-field">
+            <span>Lookback (дней)</span>
+            <input id="waste-lookback" type="number" min="1" max="90" value="7">
+          </label>
+          <label class="inline-field">
+            <span>Мин. расход (USD)</span>
+            <input id="waste-min-spend" type="number" min="0" step="0.01" value="20">
+          </label>
+          <button id="waste-refresh" type="button" class="btn btn--secondary">Обновить раздел</button>
+        </div>
+        <div id="waste-content"></div>
+      </section>
 
-        <article class="card" id="card-waste">
-          <div class="card-head">
-            <h3>Слив без результата</h3>
-            <p>Сущности, где есть расход, но нет конверсий.</p>
-          </div>
-          <div id="waste-list"></div>
+      <section id="diagnostics" class="content-section" data-section-panel hidden>
+        <header class="section-header">
+          <h3>Диагностика</h3>
+          <p>Проверка локальной конфигурации, env-подстановок и авторизации Meta API по каждому кабинету.</p>
+        </header>
+
+        <div class="section-filter">
+          <button id="diagnostics-refresh" type="button" class="btn btn--secondary">Обновить диагностику</button>
+          <a class="btn btn--secondary" href="/api/meta/config-diagnostics" target="_blank" rel="noopener noreferrer">Config JSON</a>
+          <a class="btn btn--secondary" href="/api/meta/auth-diagnostics" target="_blank" rel="noopener noreferrer">Auth JSON</a>
+          <a class="btn btn--secondary" href="/api/meta/debug-health" target="_blank" rel="noopener noreferrer">Debug health JSON</a>
+        </div>
+
+        <div id="diagnostics-health" class="panel-grid panel-grid--two"></div>
+        <div id="diagnostics-config"></div>
+        <div id="diagnostics-auth"></div>
+        <article class="panel-card" id="diagnostics-troubleshooting">
+          <h4>Troubleshooting</h4>
+          <div id="diagnostics-troubleshooting-content"></div>
         </article>
       </section>
     </main>
