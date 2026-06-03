@@ -2,6 +2,7 @@
 
 import os
 import re
+from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -108,20 +109,49 @@ class MetaDashboardService:
             result[status] = result.get(status, 0) + 1
         return result
 
-    def dashboard(self, account_id: str | None = None, end_date: str | None = None) -> dict[str, Any]:
-        resolved_account_id = self._resolve_account_id(account_id)
-        self._ensure_account_is_usable(resolved_account_id)
-        provider = self._provider
-        account = provider.get_account_summary(resolved_account_id)
-        spend = provider.get_spend_overview(resolved_account_id, end_date or date.today().isoformat())
-        billing = provider.get_billing_summary(resolved_account_id)
-        campaigns = provider.list_account_objects(resolved_account_id, "campaign", limit=200).get("rows", [])
-        adsets = provider.list_account_objects(resolved_account_id, "adset", limit=500).get("rows", [])
-        ads = provider.list_account_objects(resolved_account_id, "ad", limit=1000).get("rows", [])
-        issues = provider.get_delivery_issues(resolved_account_id, 20)
+    def _friendly_error_message(self, exc: Exception, default_message: str) -> str:
+        text = str(exc).strip()
+        normalized = text.lower()
+        if "2446079" in normalized or "слишком много вызовов" in normalized or "too many calls" in normalized:
+            return (
+                "Meta временно ограничила частоту API-вызовов по этому кабинету. "
+                "Панель покажет частичные данные. Повторите обновление через 1-2 минуты."
+            )
+        if "timeout" in normalized or "timed out" in normalized:
+            return (
+                "Источник отвечает слишком долго. Панель покажет частичные данные "
+                "и позволит повторить загрузку позже."
+            )
+        if "invalid parameter" in normalized:
+            return default_message
+        return text or default_message
+
+    def _safe_call(
+        self,
+        loader,
+        fallback: Any,
+        default_message: str,
+    ) -> tuple[Any, str | None]:
+        try:
+            return loader(), None
+        except Exception as exc:  # noqa: BLE001
+            return deepcopy(fallback), self._friendly_error_message(exc, default_message)
+
+    def _build_dashboard_payload(
+        self,
+        account_id: str,
+        account: dict[str, Any],
+        spend: dict[str, Any],
+        billing: dict[str, Any],
+        campaigns: list[dict[str, Any]],
+        adsets: list[dict[str, Any]],
+        ads: list[dict[str, Any]],
+        issues: dict[str, Any],
+        warnings: list[str] | None = None,
+    ) -> dict[str, Any]:
         return {
             "provider": "meta_ads",
-            "account_id": resolved_account_id,
+            "account_id": account_id,
             "account": account,
             "billing": billing,
             "spend": spend,
@@ -136,20 +166,22 @@ class MetaDashboardService:
                 "adsets": self._count_statuses(adsets),
                 "ads": self._count_statuses(ads),
             },
+            "warnings": warnings or [],
         }
 
-    def campaign_structure(self, account_id: str | None = None) -> dict[str, Any]:
-        resolved_account_id = self._resolve_account_id(account_id)
-        self._ensure_account_is_usable(resolved_account_id)
-        campaigns = self._provider.list_account_objects(resolved_account_id, "campaign", limit=20).get("rows", [])
-        adsets = self._provider.list_account_objects(resolved_account_id, "adset", limit=500).get("rows", [])
-        ads = self._provider.list_account_objects(resolved_account_id, "ad", limit=1000).get("rows", [])
+    def _build_campaign_structure_rows(
+        self,
+        campaigns: list[dict[str, Any]],
+        adsets: list[dict[str, Any]],
+        ads: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         adsets_by_campaign: dict[str, list[dict[str, Any]]] = {}
         ads_by_adset: dict[str, list[dict[str, Any]]] = {}
         for adset in adsets:
             adsets_by_campaign.setdefault(str(adset.get("campaign_id")), []).append(adset)
         for ad in ads:
             ads_by_adset.setdefault(str(ad.get("adset_id")), []).append(ad)
+
         rows: list[dict[str, Any]] = []
         for campaign in campaigns:
             campaign_adsets = adsets_by_campaign.get(str(campaign.get("id")), [])
@@ -176,7 +208,109 @@ class MetaDashboardService:
                     ],
                 }
             )
-        return {"provider": "meta_ads", "account_id": resolved_account_id, "rows": rows}
+        return rows
+
+    def _fetch_workspace_core(
+        self,
+        account_id: str,
+        end_date: str,
+    ) -> dict[str, Any]:
+        provider = self._provider
+        warnings: list[str] = []
+
+        account, warning = self._safe_call(
+            lambda: provider.get_account_summary(account_id),
+            {"data": {"id": account_id, "name": account_id}},
+            "Не удалось получить краткую сводку аккаунта из Meta API.",
+        )
+        if warning:
+            warnings.append(warning)
+
+        spend, warning = self._safe_call(
+            lambda: provider.get_spend_overview(account_id, end_date),
+            {"periods": []},
+            "Не удалось получить spend overview из Meta API.",
+        )
+        if warning:
+            warnings.append(warning)
+
+        billing, warning = self._safe_call(
+            lambda: provider.get_billing_summary(account_id),
+            {"billing": {}},
+            "Не удалось получить billing snapshot из Meta API.",
+        )
+        if warning:
+            warnings.append(warning)
+
+        campaigns_payload, warning = self._safe_call(
+            lambda: provider.list_account_objects(account_id, "campaign", limit=200),
+            {"rows": []},
+            "Не удалось получить список campaigns из Meta API.",
+        )
+        if warning:
+            warnings.append(warning)
+
+        adsets_payload, warning = self._safe_call(
+            lambda: provider.list_account_objects(account_id, "adset", limit=500),
+            {"rows": []},
+            "Не удалось получить список ad sets из Meta API.",
+        )
+        if warning:
+            warnings.append(warning)
+
+        ads_payload, warning = self._safe_call(
+            lambda: provider.list_account_objects(account_id, "ad", limit=1000),
+            {"rows": []},
+            "Не удалось получить список ads из Meta API.",
+        )
+        if warning:
+            warnings.append(warning)
+
+        issues, warning = self._safe_call(
+            lambda: provider.get_delivery_issues(account_id, 20),
+            {"issues": [], "issue_count": 0},
+            "Не удалось получить delivery issues из Meta API.",
+        )
+        if warning:
+            warnings.append(warning)
+
+        return {
+            "account": account,
+            "spend": spend,
+            "billing": billing,
+            "campaigns": campaigns_payload.get("rows", []),
+            "adsets": adsets_payload.get("rows", []),
+            "ads": ads_payload.get("rows", []),
+            "issues": issues,
+            "warnings": warnings,
+        }
+
+    def dashboard(self, account_id: str | None = None, end_date: str | None = None) -> dict[str, Any]:
+        resolved_account_id = self._resolve_account_id(account_id)
+        self._ensure_account_is_usable(resolved_account_id)
+        core = self._fetch_workspace_core(resolved_account_id, end_date or date.today().isoformat())
+        return self._build_dashboard_payload(
+            resolved_account_id,
+            core["account"],
+            core["spend"],
+            core["billing"],
+            core["campaigns"],
+            core["adsets"],
+            core["ads"],
+            core["issues"],
+            warnings=core["warnings"],
+        )
+
+    def campaign_structure(self, account_id: str | None = None) -> dict[str, Any]:
+        resolved_account_id = self._resolve_account_id(account_id)
+        self._ensure_account_is_usable(resolved_account_id)
+        core = self._fetch_workspace_core(resolved_account_id, date.today().isoformat())
+        return {
+            "provider": "meta_ads",
+            "account_id": resolved_account_id,
+            "rows": self._build_campaign_structure_rows(core["campaigns"][:20], core["adsets"], core["ads"]),
+            "warning": core["warnings"][0] if core["warnings"] else None,
+        }
 
     def delivery_issues(self, account_id: str | None = None, limit: int = 20) -> dict[str, Any]:
         resolved_account_id = self._resolve_account_id(account_id)
@@ -256,6 +390,7 @@ class MetaDashboardService:
             "account_id": resolved_account_id,
             "end_date": end_date or date.today().isoformat(),
             "skills": build_skill_catalog(resolved_account_id, end_date),
+            "available_accounts": self._available_accounts(),
         }
 
     def summarize_budget_skill(self, account_id: str | None = None, end_date: str | None = None) -> dict[str, Any]:
@@ -369,55 +504,131 @@ class MetaDashboardService:
 
     def workspace(self, account_id: str | None = None, end_date: str | None = None) -> dict[str, Any]:
         resolved_account_id = self._resolve_account_id(account_id)
+        self._ensure_account_is_usable(resolved_account_id)
         resolved_end_date = end_date or date.today().isoformat()
-        dashboard = self.dashboard(resolved_account_id, resolved_end_date)
-        structure = self.campaign_structure(resolved_account_id)
-        issues = self.delivery_issues(resolved_account_id, 20)
-        assets = self.connected_assets(resolved_account_id)
-        performers = self.top_performers(
-            account_id=resolved_account_id,
-            end_date=resolved_end_date,
-            lookback_days=7,
-            entity_level="campaign",
-            metric="cost_per_result",
-            limit=8,
+        start_date, _, _ = self._date_window(end_date=resolved_end_date, lookback_days=7)
+        core = self._fetch_workspace_core(resolved_account_id, resolved_end_date)
+        dashboard = self._build_dashboard_payload(
+            resolved_account_id,
+            core["account"],
+            core["spend"],
+            core["billing"],
+            core["campaigns"],
+            core["adsets"],
+            core["ads"],
+            core["issues"],
+            warnings=core["warnings"],
         )
-        no_result = self.no_result_entities(
-            account_id=resolved_account_id,
-            end_date=resolved_end_date,
-            lookback_days=7,
-            entity_level="ad",
-            min_spend=20.0,
-            limit=12,
+        structure = {
+            "provider": "meta_ads",
+            "account_id": resolved_account_id,
+            "rows": self._build_campaign_structure_rows(core["campaigns"][:20], core["adsets"], core["ads"]),
+            "warning": core["warnings"][0] if core["warnings"] else None,
+        }
+        issues = core["issues"]
+        assets, assets_warning = self._safe_call(
+            lambda: self._provider.get_connected_assets(resolved_account_id),
+            {"pages": [], "instagram_accounts": [], "pixels": [], "custom_conversions": []},
+            "Не удалось получить connected assets из Meta API.",
         )
+        if assets_warning:
+            assets["warning"] = assets_warning
+        performers, performers_warning = self._safe_call(
+            lambda: self.top_performers(
+                account_id=resolved_account_id,
+                end_date=resolved_end_date,
+                lookback_days=7,
+                entity_level="campaign",
+                metric="cost_per_result",
+                limit=8,
+            ),
+            {
+                "provider": "meta_ads",
+                "account_id": resolved_account_id,
+                "entity_level": "campaign",
+                "metric": "cost_per_result",
+                "rows": [],
+            },
+            "Не удалось получить список top performers из Meta API.",
+        )
+        if performers_warning:
+            performers["warning"] = performers_warning
+        no_result, no_result_warning = self._safe_call(
+            lambda: self.no_result_entities(
+                account_id=resolved_account_id,
+                end_date=resolved_end_date,
+                lookback_days=7,
+                entity_level="ad",
+                min_spend=20.0,
+                limit=12,
+            ),
+            {
+                "provider": "meta_ads",
+                "account_id": resolved_account_id,
+                "entity_level": "ad",
+                "rows": [],
+            },
+            "Не удалось получить список сущностей без результата из Meta API.",
+        )
+        if no_result_warning:
+            no_result["warning"] = no_result_warning
         config = self.config_diagnostics()
-        auth = self.auth_diagnostics()
-        health = self.diagnostics_health()
-        budget_summary = self.summarize_budget_skill(resolved_account_id, resolved_end_date)
-        disable_candidates = self.disable_candidates_skill(
-            account_id=resolved_account_id,
-            end_date=resolved_end_date,
-            lookback_days=7,
-            entity_level="ad",
-            min_spend=20.0,
-            limit=10,
+        persistence = self.persistence_diagnostics()
+        auth = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "provider": "meta_ads",
+            "accounts_checked": 0,
+            "auth_ok_count": 0,
+            "auth_failed_count": 0,
+            "checks": [],
+            "warning": "Подробная auth-диагностика загружается отдельно по кнопке.",
+        }
+        health = {
+            "status": "deferred",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "config": {
+                "provider_loaded": config.get("provider_loaded"),
+                "accounts_total": config.get("runtime", {}).get("accounts_total", 0),
+                "env_exists": config.get("env", {}).get("exists"),
+                "connections_primary_exists": config.get("connections", {}).get("primary_exists"),
+                "env_substitution_ok": config.get("env_substitution", {}).get("all_resolved"),
+                "missing_env_vars": config.get("env_substitution", {}).get("missing_vars", []),
+                "clickhouse": build_clickhouse_contract(self._settings).get("database", {}),
+            },
+            "auth": {
+                "accounts_checked": 0,
+                "auth_ok_count": 0,
+                "auth_failed_count": 0,
+            },
+            "persistence": persistence,
+            "warning": "Подробная диагностика загружается отдельно, чтобы не перегружать Meta API на старте.",
+        }
+        budget_summary = build_budget_skill_summary(resolved_account_id, resolved_end_date, core["spend"], core["billing"])
+        disable_candidates = build_disable_candidates_skill(
+            resolved_account_id,
+            start_date,
+            resolved_end_date,
+            issues,
+            no_result,
+            20.0,
+            max_items=10,
         )
-        scale_candidates = self.scale_candidates_skill(
-            account_id=resolved_account_id,
-            end_date=resolved_end_date,
-            lookback_days=7,
-            entity_level="campaign",
+        scale_candidates = build_scale_candidates_skill(
+            resolved_account_id,
+            start_date,
+            resolved_end_date,
+            performers,
             max_cost_per_result=20.0,
             min_conversions=1.0,
-            limit=10,
+            max_items=10,
         )
-        report_skill = self.collect_report_skill(
-            account_id=resolved_account_id,
-            end_date=resolved_end_date,
-            lookback_days=7,
-            entity_level="campaign",
-            min_spend=20.0,
-            max_cost_per_result=20.0,
+        report_skill = build_report_skill(
+            resolved_account_id,
+            resolved_end_date,
+            budget_summary,
+            disable_candidates,
+            scale_candidates,
+            issues,
         )
         snapshot = build_workspace_snapshot(
             settings=self._settings,
@@ -438,6 +649,10 @@ class MetaDashboardService:
             scale_candidates=scale_candidates,
             report_skill=report_skill,
         )
+        snapshot["warnings"] = [
+            *core["warnings"],
+            *(item for item in (assets_warning, performers_warning, no_result_warning) if item),
+        ]
         if self._settings.clickhouse_auto_sync_workspace:
             persistence = self._persistence.sync_workspace(snapshot)
             snapshot["persistence"] = persistence

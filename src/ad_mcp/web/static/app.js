@@ -5,6 +5,8 @@
     workspace: null,
     selectedSkillId: "collect_report",
     selectedSkill: null,
+    diagnosticsLoaded: false,
+    currentSection: "skills",
   };
 
   const el = {
@@ -95,7 +97,13 @@
 
   function bindNavigation() {
     el.navButtons.forEach((button) => {
-      button.addEventListener("click", () => setActiveSection(button.dataset.section));
+      button.addEventListener("click", async () => {
+        const section = button.dataset.section;
+        setActiveSection(section);
+        if (section === "diagnostics" && !state.diagnosticsLoaded) {
+          await loadDiagnostics(true);
+        }
+      });
     });
   }
 
@@ -240,11 +248,14 @@
     setStatus("loading", "Обновляю данные…");
     try {
       await loadWorkspace();
-      await Promise.allSettled([loadDiagnostics(), loadPerformers(), loadNoResultSpend()]);
-      setStatus("ok", "Данные обновлены");
+      setStatus(
+        state.workspace?.warnings?.length ? "warning" : "ok",
+        state.workspace?.warnings?.length ? "Данные обновлены частично" : "Данные обновлены",
+      );
     } catch (error) {
-      setStatus("error", error.message || "Ошибка загрузки данных");
-      renderError(el.overviewMetrics, error.message || "Не удалось загрузить workspace.");
+      const message = humanizeError(error);
+      setStatus("error", message);
+      renderError(el.overviewMetrics, message || "Не удалось загрузить workspace.");
     } finally {
       el.lastRefreshTime.textContent = `Обновлено: ${new Date().toLocaleTimeString("ru-RU")}`;
     }
@@ -271,6 +282,9 @@
     renderDiagnosticsFromWorkspace(payload);
     renderSkillCatalog(payload.skills?.catalog || []);
     renderSelectedSkillFromWorkspace();
+    if (Array.isArray(payload.warnings) && payload.warnings.length) {
+      toast(payload.warnings[0], "info");
+    }
   }
 
   async function loadPerformers() {
@@ -307,7 +321,7 @@
     }
   }
 
-  async function loadDiagnostics() {
+  async function loadDiagnostics(quiet = false) {
     renderLoading(el.diagnosticsHealth, "Проверяем конфигурацию…");
     try {
       const [health, config, auth, persistence, contract] = await Promise.all([
@@ -318,8 +332,13 @@
         api.dataContract(),
       ]);
       renderDiagnostics(health, config, auth, persistence, contract);
+      state.diagnosticsLoaded = true;
     } catch (error) {
-      renderError(el.diagnosticsHealth, error.message || "Не удалось обновить диагностику.");
+      const message = humanizeError(error);
+      renderError(el.diagnosticsHealth, message || "Не удалось обновить диагностику.");
+      if (!quiet) {
+        toast(message, "error");
+      }
     }
   }
 
@@ -402,6 +421,7 @@
     }
     el.overviewOperatorSummary.innerHTML = `
       <div class="list-box">
+        ${renderInlineNoticeMarkup((state.workspace?.warnings || [])[0], "warning")}
         ${items
           .map(
             (row) => `
@@ -421,10 +441,11 @@
   function renderStructure(payload) {
     const rows = payload.rows || [];
     if (!rows.length) {
-      renderEmpty(el.structureContent, "Структура кампаний пока не получена.");
+      el.structureContent.innerHTML = `${renderInlineNoticeMarkup(payload.warning, "warning")}${renderEmptyMarkup("Структура кампаний пока не получена.")}`;
       return;
     }
     el.structureContent.innerHTML = `
+      ${renderInlineNoticeMarkup(payload.warning, "warning")}
       <div class="structure-list">
         ${rows
           .map(
@@ -466,10 +487,11 @@
   function renderIssues(payload) {
     const issues = payload.issues || [];
     if (!issues.length) {
-      renderEmpty(el.issuesContent, "Проблем доставки не найдено.");
+      el.issuesContent.innerHTML = `${renderInlineNoticeMarkup(payload.warning, "warning")}${renderEmptyMarkup("Проблем доставки не найдено.")}`;
       return;
     }
     el.issuesContent.innerHTML = `
+      ${renderInlineNoticeMarkup(payload.warning, "warning")}
       <div class="list-box">
         ${issues
           .map(
@@ -490,7 +512,7 @@
   }
 
   function renderAssets(payload) {
-    const assets = payload.assets || {};
+    const assets = payload.assets || payload || {};
     const groups = [
       ["Страницы", assets.pages || []],
       ["Instagram", assets.instagram_accounts || []],
@@ -498,64 +520,73 @@
       ["Custom conversions", assets.custom_conversions || []],
     ];
 
-    el.assetsContent.innerHTML = groups
-      .map(
-        ([title, rows]) => `
-          <article class="panel-card">
-            <h4>${esc(title)}</h4>
-            ${
-              rows.length
-                ? `<div class="list-box">
-                    ${rows
-                      .map(
-                        (row) => `
-                          <div class="list-row">
-                            <div class="list-row__head">
-                              <span class="list-row__title">${esc(row.name || row.id || "Asset")}</span>
+    el.assetsContent.innerHTML = `
+      ${renderInlineNoticeMarkup(payload.warning, "warning")}
+      ${groups
+        .map(
+          ([title, rows]) => `
+            <article class="panel-card">
+              <h4>${esc(title)}</h4>
+              ${
+                rows.length
+                  ? `<div class="list-box">
+                      ${rows
+                        .map(
+                          (row) => `
+                            <div class="list-row">
+                              <div class="list-row__head">
+                                <span class="list-row__title">${esc(row.name || row.id || "Asset")}</span>
+                              </div>
+                              <div class="list-row__meta mono-text">${esc(row.id || "—")}</div>
                             </div>
-                            <div class="list-row__meta mono-text">${esc(row.id || "—")}</div>
-                          </div>
-                        `,
-                      )
-                      .join("")}
-                  </div>`
-                : renderEmptyMarkup("Нет подключённых объектов в этой группе.")
-            }
-          </article>
-        `,
-      )
-      .join("");
+                          `,
+                        )
+                        .join("")}
+                    </div>`
+                  : renderEmptyMarkup("Нет подключённых объектов в этой группе.")
+              }
+            </article>
+          `,
+        )
+        .join("")}
+    `;
   }
 
   function renderPerformers(payload) {
     const rows = payload.rows || [];
     if (!rows.length) {
-      renderEmpty(el.performersContent, "Подходящие top performers пока не найдены.");
+      el.performersContent.innerHTML = `${renderInlineNoticeMarkup(payload.warning, "warning")}${renderEmptyMarkup("Подходящие top performers пока не найдены.")}`;
       return;
     }
-    el.performersContent.innerHTML = renderTable(rows, [
-      ["entity_name", "Сущность"],
-      ["spend", "Расход", "currency"],
-      ["conversions", "Конверсии", "number"],
-      ["cost_per_result", "Цена результата", "currency"],
-      ["ctr", "CTR", "percent"],
-      ["cpc", "CPC", "currency"],
-    ]);
+    el.performersContent.innerHTML = `
+      ${renderInlineNoticeMarkup(payload.warning, "warning")}
+      ${renderTable(rows, [
+        ["entity_name", "Сущность"],
+        ["spend", "Расход", "currency"],
+        ["conversions", "Конверсии", "number"],
+        ["cost_per_result", "Цена результата", "currency"],
+        ["ctr", "CTR", "percent"],
+        ["cpc", "CPC", "currency"],
+      ])}
+    `;
   }
 
   function renderNoResult(payload) {
     const rows = payload.rows || [];
     if (!rows.length) {
-      renderEmpty(el.wasteContent, "Сущностей с расходом без результата не найдено.");
+      el.wasteContent.innerHTML = `${renderInlineNoticeMarkup(payload.warning, "warning")}${renderEmptyMarkup("Сущностей с расходом без результата не найдено.")}`;
       return;
     }
-    el.wasteContent.innerHTML = renderTable(rows, [
-      ["entity_name", "Сущность"],
-      ["spend", "Расход", "currency"],
-      ["conversions", "Конверсии", "number"],
-      ["ctr", "CTR", "percent"],
-      ["objective", "Objective"],
-    ]);
+    el.wasteContent.innerHTML = `
+      ${renderInlineNoticeMarkup(payload.warning, "warning")}
+      ${renderTable(rows, [
+        ["entity_name", "Сущность"],
+        ["spend", "Расход", "currency"],
+        ["conversions", "Конверсии", "number"],
+        ["ctr", "CTR", "percent"],
+        ["objective", "Objective"],
+      ])}
+    `;
   }
 
   function renderDiagnosticsFromWorkspace(workspace) {
@@ -573,6 +604,7 @@
     const contract = contractPayload.clickhouse || contractPayload;
 
     el.diagnosticsHealth.innerHTML = `
+      ${renderInlineNoticeMarkup(health.warning || auth.warning, "info")}
       <article class="diag-health-card">
         <h4>Health</h4>
         <div class="diag-stack">
@@ -615,6 +647,7 @@
     el.diagnosticsAuth.innerHTML = `
       <article class="panel-card">
         <h4>Проверка авторизации</h4>
+        ${renderInlineNoticeMarkup(auth.warning, "info")}
         ${
           checks.length
             ? renderTable(checks, [
@@ -976,6 +1009,7 @@
   }
 
   function setActiveSection(section) {
+    state.currentSection = section;
     el.navButtons.forEach((button) => {
       const active = button.dataset.section === section;
       button.classList.toggle("is-active", active);
@@ -989,7 +1023,8 @@
   }
 
   function setStatus(kind, text) {
-    el.statusDot.dataset.state = kind;
+    el.statusDot.classList.remove("is-loading", "is-ok", "is-error", "is-warning");
+    el.statusDot.classList.add(`is-${kind}`);
     el.statusText.textContent = text;
   }
 
@@ -1010,7 +1045,7 @@
   }
 
   function renderError(container, text) {
-    container.innerHTML = `<div class="error-state">${esc(text)}</div>`;
+    container.innerHTML = `<div class="error-state">${esc(humanizeError(text))}</div>`;
   }
 
   function renderEmpty(container, text) {
@@ -1019,6 +1054,11 @@
 
   function renderEmptyMarkup(text) {
     return `<div class="empty-state"><p>${esc(text)}</p></div>`;
+  }
+
+  function renderInlineNoticeMarkup(text, tone = "warning") {
+    if (!text) return "";
+    return `<div class="notice-state notice-state--${escAttr(tone)}">${esc(text)}</div>`;
   }
 
   function renderKvGrid(entries) {
@@ -1192,7 +1232,7 @@
       }
     }
     if (!response.ok) {
-      throw new Error(payload.error || payload.message || `HTTP ${response.status}`);
+      throw new Error(humanizeError(payload.error || payload.message || `HTTP ${response.status}`));
     }
     return payload;
   }
@@ -1238,6 +1278,24 @@
     if (["PAUSED", "PENDING_REVIEW", "LEARNING", "LIMITED"].includes(normalized)) return "is-warning";
     if (["DISAPPROVED", "ERROR", "FAILED", "REJECTED"].includes(normalized)) return "is-danger";
     return "is-neutral";
+  }
+
+  function humanizeError(error) {
+    const text = String(error?.message || error || "").trim();
+    const normalized = text.toLowerCase();
+    if (!text) {
+      return "Не удалось получить данные. Попробуйте обновить раздел ещё раз.";
+    }
+    if (normalized.includes("2446079") || normalized.includes("слишком много вызовов") || normalized.includes("too many calls")) {
+      return "Meta временно ограничила частоту API-вызовов. Панель покажет частичные данные; повторите обновление через 1-2 минуты.";
+    }
+    if (normalized.includes("timeout") || normalized.includes("timed out") || normalized.includes("504")) {
+      return "Источник отвечает слишком долго. Попробуйте повторить обновление чуть позже.";
+    }
+    if (text.length > 260) {
+      return `${text.slice(0, 257)}...`;
+    }
+    return text;
   }
 
   init();

@@ -78,6 +78,8 @@ textarea {
 .content-section,
 .empty-state,
 .error-state,
+.notice-state,
+.table-shell,
 .table-wrap,
 .list-box,
 .structure-item,
@@ -265,9 +267,9 @@ button:focus-visible {
 }
 
 .topbar__controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(180px, 220px) auto auto;
+  gap: 10px;
   align-items: end;
 }
 
@@ -284,6 +286,7 @@ button:focus-visible {
   align-items: center;
   gap: 8px;
   font-size: 13px;
+  flex-wrap: wrap;
 }
 
 .status-dot {
@@ -303,6 +306,10 @@ button:focus-visible {
 
 .status-dot.is-error {
   background: var(--danger);
+}
+
+.status-dot.is-warning {
+  background: #b54708;
 }
 
 .last-refresh-time {
@@ -437,13 +444,21 @@ button:focus-visible {
   color: #7a271a;
 }
 
-.status-chip.is-ok {
+.status-chip.is-ok,
+.status-chip.is-success {
   background: #e8f8ef;
   border-color: #a9e2be;
   color: #145a32;
 }
 
-.table-wrap {
+.status-chip.is-danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.table-wrap,
+.table-shell {
   overflow-x: auto;
 }
 
@@ -630,6 +645,25 @@ tbody tr:hover {
 .result-summary strong {
   display: inline-block;
   margin-right: 6px;
+}
+
+.notice-state {
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.notice-state--warning {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+}
+
+.notice-state--info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
 }
 
 .diag-health-card {
