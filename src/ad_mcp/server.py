@@ -19,6 +19,7 @@ from ad_mcp.tools.billing import build_billing_tools
 from ad_mcp.tools.discovery import build_discovery_tools
 from ad_mcp.tools.intents import build_intent_tools
 from ad_mcp.tools.meta_specialist import build_meta_specialist_tools
+from ad_mcp.tools.mcp_skill_presets import build_mcp_skill_preset_tools
 from ad_mcp.tools.objects import build_object_tools
 from ad_mcp.tools.reporting import build_reporting_tools
 from ad_mcp.tools.write_commit import build_write_commit_tools
@@ -62,6 +63,7 @@ def create_server() -> FastMCP:
         build_write_commit_tools(registry, preview_manager, audit_logger, policy_manager),
         build_intent_tools(registry, preview_manager, policy_manager),
         build_meta_specialist_tools(registry, preview_manager, policy_manager),
+        build_mcp_skill_preset_tools(registry, policy_manager),
     ]
     for toolset in toolsets:
         for name, func in toolset.items():

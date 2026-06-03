@@ -77,9 +77,14 @@ class AdsWebHandler(BaseHTTPRequestHandler):
 
             query = self._query()
             account_id = query.get("account_id")
+            end_date = query.get("end_date")
 
             if route == "/api/meta/dashboard":
-                return self._send_json(self.service.dashboard(account_id=account_id, end_date=query.get("end_date")))
+                return self._send_json(self.service.dashboard(account_id=account_id, end_date=end_date))
+            if route == "/api/meta/workspace":
+                return self._send_json(self.service.workspace(account_id=account_id, end_date=end_date))
+            if route == "/api/meta/data-contract":
+                return self._send_json(self.service.data_contract())
             if route == "/api/meta/campaign-structure":
                 return self._send_json(self.service.campaign_structure(account_id=account_id))
             if route == "/api/meta/delivery-issues":
@@ -90,7 +95,7 @@ class AdsWebHandler(BaseHTTPRequestHandler):
                 return self._send_json(
                     self.service.top_performers(
                         account_id=account_id,
-                        end_date=query.get("end_date"),
+                        end_date=end_date,
                         lookback_days=int(query.get("lookback_days", "7")),
                         entity_level=query.get("entity_level", "campaign"),
                         metric=query.get("metric", "cost_per_result"),
@@ -101,7 +106,7 @@ class AdsWebHandler(BaseHTTPRequestHandler):
                 return self._send_json(
                     self.service.no_result_entities(
                         account_id=account_id,
-                        end_date=query.get("end_date"),
+                        end_date=end_date,
                         lookback_days=int(query.get("lookback_days", "7")),
                         entity_level=query.get("entity_level", "ad"),
                         min_spend=float(query.get("min_spend", "20")),
@@ -112,8 +117,48 @@ class AdsWebHandler(BaseHTTPRequestHandler):
                 return self._send_json(self.service.config_diagnostics())
             if route == "/api/meta/auth-diagnostics":
                 return self._send_json(self.service.auth_diagnostics())
+            if route == "/api/meta/persistence":
+                return self._send_json(self.service.persistence_diagnostics())
             if route == "/api/meta/debug-health":
                 return self._send_json(self.service.diagnostics_health())
+            if route == "/api/meta/skills/catalog":
+                return self._send_json(self.service.skill_catalog(account_id=account_id, end_date=end_date))
+            if route == "/api/meta/skills/budget-summary":
+                return self._send_json(self.service.summarize_budget_skill(account_id=account_id, end_date=end_date))
+            if route == "/api/meta/skills/disable-candidates":
+                return self._send_json(
+                    self.service.disable_candidates_skill(
+                        account_id=account_id,
+                        end_date=end_date,
+                        lookback_days=int(query.get("lookback_days", "7")),
+                        entity_level=query.get("entity_level", "ad"),
+                        min_spend=float(query.get("min_spend", "20")),
+                        limit=int(query.get("limit", "10")),
+                    )
+                )
+            if route == "/api/meta/skills/scale-candidates":
+                return self._send_json(
+                    self.service.scale_candidates_skill(
+                        account_id=account_id,
+                        end_date=end_date,
+                        lookback_days=int(query.get("lookback_days", "7")),
+                        entity_level=query.get("entity_level", "campaign"),
+                        max_cost_per_result=float(query.get("max_cost_per_result", "20")),
+                        min_conversions=float(query.get("min_conversions", "1")),
+                        limit=int(query.get("limit", "10")),
+                    )
+                )
+            if route == "/api/meta/skills/collect-report":
+                return self._send_json(
+                    self.service.collect_report_skill(
+                        account_id=account_id,
+                        end_date=end_date,
+                        lookback_days=int(query.get("lookback_days", "7")),
+                        entity_level=query.get("entity_level", "campaign"),
+                        min_spend=float(query.get("min_spend", "20")),
+                        max_cost_per_result=float(query.get("max_cost_per_result", "20")),
+                    )
+                )
         except (AdMCPError, ValueError, KeyError, json.JSONDecodeError, RuntimeError) as exc:
             return self._error(str(exc))
         except Exception as exc:  # noqa: BLE001

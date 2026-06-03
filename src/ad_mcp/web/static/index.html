@@ -33,16 +33,17 @@
     <aside class="sidebar" aria-label="Навигация и действия">
       <section class="sidebar-card brand-card">
         <p class="section-kicker">mcp-for-ads</p>
-        <h1 class="brand-card__title">Meta Ads Operator Console</h1>
+        <h1 class="brand-card__title">Neuro Ads Operator</h1>
         <p class="brand-card__description">
-          Внутренняя панель для диагностики рекламного кабинета и безопасных preview-действий.
+          Внутренний инструмент для Meta Ads: статусы, summaries, diagnostics, preview-действия и готовые MCP-навыки для ИИ.
         </p>
       </section>
 
       <nav class="sidebar-card nav-card" aria-label="Разделы">
         <h2 class="sidebar-card__title">Разделы</h2>
         <ul class="nav-list">
-          <li><button type="button" class="nav-button is-active" data-section="overview">Overview / dashboard</button></li>
+          <li><button type="button" class="nav-button is-active" data-section="skills">Навыки ИИ / MCP</button></li>
+          <li><button type="button" class="nav-button" data-section="overview">Overview / dashboard</button></li>
           <li><button type="button" class="nav-button" data-section="structure">Campaign structure</button></li>
           <li><button type="button" class="nav-button" data-section="issues">Delivery issues</button></li>
           <li><button type="button" class="nav-button" data-section="assets">Connected assets</button></li>
@@ -141,8 +142,10 @@
         </div>
         <div class="topbar__controls">
           <label class="inline-field">
-            <span>Account ID (опционально)</span>
-            <input id="filter-account-id" type="text" placeholder="act_...">
+            <span>Аккаунт</span>
+            <select id="filter-account-id">
+              <option value="">Загрузка списка…</option>
+            </select>
           </label>
           <label class="inline-field">
             <span>Дата отчёта</span>
@@ -158,11 +161,40 @@
         </div>
       </header>
 
-      <section id="overview" class="content-section is-active" data-section-panel>
+      <section id="skills" class="content-section is-active" data-section-panel>
+        <header class="section-header">
+          <h3>Навыки ИИ / MCP</h3>
+          <p>Готовые skill-сценарии для Codex и других MCP-клиентов без внешних скриптов: отчёт, бюджет, отключения и масштабирование.</p>
+        </header>
+        <div class="assistant-shell">
+          <div class="assistant-shell__prompt">
+            <label class="inline-field inline-field--grow">
+              <span>Готовый prompt для ИИ</span>
+              <textarea id="skills-prompt-box" rows="4" readonly placeholder="Выберите навык, чтобы получить готовый prompt для MCP."></textarea>
+            </label>
+            <div class="assistant-shell__actions">
+              <button id="skills-copy-prompt" type="button" class="btn btn--secondary">Копировать prompt</button>
+              <button id="skills-run-selected" type="button" class="btn btn--primary">Запустить выбранный навык</button>
+            </div>
+          </div>
+          <div id="skills-catalog" class="skill-grid"></div>
+        </div>
+        <article class="panel-card">
+          <h4>Результат выбранного навыка</h4>
+          <div id="skills-result"></div>
+        </article>
+      </section>
+
+      <section id="overview" class="content-section" data-section-panel hidden>
         <header class="section-header">
           <h3>Overview / dashboard</h3>
           <p>Общие KPI кабинета, структура по статусам и быстрый снимок аккаунта.</p>
         </header>
+        <article class="panel-card overview-hero">
+          <h4>Операторская сводка</h4>
+          <p id="overview-headline" class="overview-hero__headline">Сводка загружается…</p>
+          <div id="overview-operator-summary" class="result-stack"></div>
+        </article>
         <div id="overview-metrics" class="metrics-grid"></div>
         <div class="panel-grid panel-grid--two">
           <article class="panel-card">
@@ -268,12 +300,16 @@
           <button id="diagnostics-refresh" type="button" class="btn btn--secondary">Обновить диагностику</button>
           <a class="btn btn--secondary" href="/api/meta/config-diagnostics" target="_blank" rel="noopener noreferrer">Config JSON</a>
           <a class="btn btn--secondary" href="/api/meta/auth-diagnostics" target="_blank" rel="noopener noreferrer">Auth JSON</a>
+          <a class="btn btn--secondary" href="/api/meta/persistence" target="_blank" rel="noopener noreferrer">Persistence JSON</a>
           <a class="btn btn--secondary" href="/api/meta/debug-health" target="_blank" rel="noopener noreferrer">Debug health JSON</a>
+          <a class="btn btn--secondary" href="/api/meta/data-contract" target="_blank" rel="noopener noreferrer">Data contract JSON</a>
         </div>
 
         <div id="diagnostics-health" class="panel-grid panel-grid--two"></div>
         <div id="diagnostics-config"></div>
         <div id="diagnostics-auth"></div>
+        <div id="diagnostics-persistence"></div>
+        <div id="diagnostics-contract"></div>
         <article class="panel-card" id="diagnostics-troubleshooting">
           <h4>Troubleshooting</h4>
           <div id="diagnostics-troubleshooting-content"></div>

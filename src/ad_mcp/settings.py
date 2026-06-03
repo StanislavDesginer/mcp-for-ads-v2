@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     policy_config: str = "config/policies/safety.example.yaml"
     web_host: str = "127.0.0.1"
     web_port: int = 8765
+    clickhouse_enabled: bool = False
+    clickhouse_host: str = "127.0.0.1"
+    clickhouse_port: int = 8123
+    clickhouse_database: str = "ad_mcp_ai"
+    clickhouse_user: str = "default"
+    clickhouse_password: str = ""
+    clickhouse_secure: bool = False
+    clickhouse_timeout_seconds: float = 5.0
+    clickhouse_auto_sync_workspace: bool = True
     project_root: Path = Field(default=ROOT_DIR)
 
     @property

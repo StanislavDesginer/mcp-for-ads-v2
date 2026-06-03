@@ -13,11 +13,21 @@ from ad_mcp.core.config_loader import (
     load_provider_from_connections,
     load_safety_policy,
 )
+from ad_mcp.core.meta_skill_presets import (
+    build_budget_skill_summary,
+    build_clickhouse_contract,
+    build_disable_candidates_skill,
+    build_report_skill,
+    build_scale_candidates_skill,
+    build_skill_catalog,
+    build_workspace_snapshot,
+)
 from ad_mcp.core.models import ObjectMutationResponse
 from ad_mcp.core.policy import PolicyManager
 from ad_mcp.core.preview_manager import PreviewManager
 from ad_mcp.providers.meta_ads.client import MetaAdsProvider
 from ad_mcp.settings import Settings
+from ad_mcp.storage.clickhouse import ClickHousePersistence
 
 
 _ENV_REF_RE = re.compile(r"\$\{([A-Z0-9_]+)(?::-([^}]*))?\}")
@@ -34,6 +44,7 @@ class MetaDashboardService:
         self._provider_config = provider_config
         self._provider = MetaAdsProvider(config=provider_config)
         self._preview_manager = PreviewManager()
+        self._persistence = ClickHousePersistence(settings)
 
     def _has_placeholder_credentials(self, account: dict[str, Any]) -> bool:
         markers = ("YOUR_", "<", "EXAMPLE", "CHANGE_ME", "PLACEHOLDER")
@@ -69,6 +80,18 @@ class MetaDashboardService:
 
     def _resolve_account_id(self, account_id: str | None) -> str:
         return str(account_id or self._default_account_id()).strip()
+
+    def _available_accounts(self) -> list[dict[str, Any]]:
+        accounts = self._provider.config.get("accounts", [])
+        return [
+            {
+                "account_id": str(account.get("account_id", "") or ""),
+                "name": str(account.get("name", "") or account.get("account_id", "") or "Meta Ads account"),
+                "status": str(account.get("status", "") or "configured"),
+                "app_id": str(account.get("app_id", "") or ""),
+            }
+            for account in accounts
+        ]
 
     def _date_window(self, end_date: str | None = None, lookback_days: int = 7) -> tuple[str, str, str]:
         resolved_end = date.fromisoformat(end_date) if end_date else date.today()
@@ -219,12 +242,217 @@ class MetaDashboardService:
             "rows": rows[:limit],
         }
 
+    def data_contract(self) -> dict[str, Any]:
+        return {
+            "provider": "meta_ads",
+            "clickhouse": build_clickhouse_contract(self._settings),
+            "persistence": self._persistence.diagnostics(),
+        }
+
+    def skill_catalog(self, account_id: str | None = None, end_date: str | None = None) -> dict[str, Any]:
+        resolved_account_id = self._resolve_account_id(account_id)
+        return {
+            "provider": "meta_ads",
+            "account_id": resolved_account_id,
+            "end_date": end_date or date.today().isoformat(),
+            "skills": build_skill_catalog(resolved_account_id, end_date),
+        }
+
+    def summarize_budget_skill(self, account_id: str | None = None, end_date: str | None = None) -> dict[str, Any]:
+        resolved_account_id = self._resolve_account_id(account_id)
+        self._ensure_account_is_usable(resolved_account_id)
+        resolved_end_date = end_date or date.today().isoformat()
+        spend = self._provider.get_spend_overview(resolved_account_id, resolved_end_date)
+        billing = self._provider.get_billing_summary(resolved_account_id)
+        return build_budget_skill_summary(resolved_account_id, resolved_end_date, spend, billing)
+
+    def disable_candidates_skill(
+        self,
+        account_id: str | None = None,
+        end_date: str | None = None,
+        lookback_days: int = 7,
+        entity_level: str = "ad",
+        min_spend: float = 20.0,
+        limit: int = 10,
+    ) -> dict[str, Any]:
+        resolved_account_id = self._resolve_account_id(account_id)
+        self._ensure_account_is_usable(resolved_account_id)
+        start_date, _, end_date_iso = self._date_window(end_date=end_date, lookback_days=lookback_days)
+        issues = self._provider.get_delivery_issues(resolved_account_id, max(limit * 2, 20))
+        no_result = self.no_result_entities(
+            account_id=resolved_account_id,
+            end_date=end_date_iso,
+            lookback_days=lookback_days,
+            entity_level=entity_level,
+            min_spend=min_spend,
+            limit=max(limit * 2, 20),
+        )
+        return build_disable_candidates_skill(
+            resolved_account_id,
+            start_date,
+            end_date_iso,
+            issues,
+            no_result,
+            min_spend,
+            max_items=limit,
+        )
+
+    def scale_candidates_skill(
+        self,
+        account_id: str | None = None,
+        end_date: str | None = None,
+        lookback_days: int = 7,
+        entity_level: str = "campaign",
+        max_cost_per_result: float = 20.0,
+        min_conversions: float = 1.0,
+        limit: int = 10,
+    ) -> dict[str, Any]:
+        resolved_account_id = self._resolve_account_id(account_id)
+        self._ensure_account_is_usable(resolved_account_id)
+        start_date, _, end_date_iso = self._date_window(end_date=end_date, lookback_days=lookback_days)
+        performers = self._provider.rank_top_entities(
+            resolved_account_id,
+            entity_level,
+            start_date,
+            end_date_iso,
+            "cost_per_result",
+            max(limit * 3, 20),
+        )
+        return build_scale_candidates_skill(
+            resolved_account_id,
+            start_date,
+            end_date_iso,
+            performers,
+            max_cost_per_result=max_cost_per_result,
+            min_conversions=min_conversions,
+            max_items=limit,
+        )
+
+    def collect_report_skill(
+        self,
+        account_id: str | None = None,
+        end_date: str | None = None,
+        lookback_days: int = 7,
+        entity_level: str = "campaign",
+        min_spend: float = 20.0,
+        max_cost_per_result: float = 20.0,
+    ) -> dict[str, Any]:
+        resolved_account_id = self._resolve_account_id(account_id)
+        resolved_end_date = end_date or date.today().isoformat()
+        budget_summary = self.summarize_budget_skill(resolved_account_id, resolved_end_date)
+        disable_candidates = self.disable_candidates_skill(
+            account_id=resolved_account_id,
+            end_date=resolved_end_date,
+            lookback_days=lookback_days,
+            entity_level="ad",
+            min_spend=min_spend,
+            limit=10,
+        )
+        scale_candidates = self.scale_candidates_skill(
+            account_id=resolved_account_id,
+            end_date=resolved_end_date,
+            lookback_days=lookback_days,
+            entity_level=entity_level,
+            max_cost_per_result=max_cost_per_result,
+            min_conversions=1.0,
+            limit=10,
+        )
+        issues = self._provider.get_delivery_issues(resolved_account_id, 20)
+        return build_report_skill(
+            resolved_account_id,
+            resolved_end_date,
+            budget_summary,
+            disable_candidates,
+            scale_candidates,
+            issues,
+        )
+
+    def workspace(self, account_id: str | None = None, end_date: str | None = None) -> dict[str, Any]:
+        resolved_account_id = self._resolve_account_id(account_id)
+        resolved_end_date = end_date or date.today().isoformat()
+        dashboard = self.dashboard(resolved_account_id, resolved_end_date)
+        structure = self.campaign_structure(resolved_account_id)
+        issues = self.delivery_issues(resolved_account_id, 20)
+        assets = self.connected_assets(resolved_account_id)
+        performers = self.top_performers(
+            account_id=resolved_account_id,
+            end_date=resolved_end_date,
+            lookback_days=7,
+            entity_level="campaign",
+            metric="cost_per_result",
+            limit=8,
+        )
+        no_result = self.no_result_entities(
+            account_id=resolved_account_id,
+            end_date=resolved_end_date,
+            lookback_days=7,
+            entity_level="ad",
+            min_spend=20.0,
+            limit=12,
+        )
+        config = self.config_diagnostics()
+        auth = self.auth_diagnostics()
+        health = self.diagnostics_health()
+        budget_summary = self.summarize_budget_skill(resolved_account_id, resolved_end_date)
+        disable_candidates = self.disable_candidates_skill(
+            account_id=resolved_account_id,
+            end_date=resolved_end_date,
+            lookback_days=7,
+            entity_level="ad",
+            min_spend=20.0,
+            limit=10,
+        )
+        scale_candidates = self.scale_candidates_skill(
+            account_id=resolved_account_id,
+            end_date=resolved_end_date,
+            lookback_days=7,
+            entity_level="campaign",
+            max_cost_per_result=20.0,
+            min_conversions=1.0,
+            limit=10,
+        )
+        report_skill = self.collect_report_skill(
+            account_id=resolved_account_id,
+            end_date=resolved_end_date,
+            lookback_days=7,
+            entity_level="campaign",
+            min_spend=20.0,
+            max_cost_per_result=20.0,
+        )
+        snapshot = build_workspace_snapshot(
+            settings=self._settings,
+            account_id=resolved_account_id,
+            end_date=resolved_end_date,
+            available_accounts=self._available_accounts(),
+            dashboard=dashboard,
+            structure=structure,
+            issues=issues,
+            assets=assets,
+            performers=performers,
+            no_result=no_result,
+            config_diagnostics=config,
+            auth_diagnostics=auth,
+            diagnostics_health=health,
+            budget_summary=budget_summary,
+            disable_candidates=disable_candidates,
+            scale_candidates=scale_candidates,
+            report_skill=report_skill,
+        )
+        if self._settings.clickhouse_auto_sync_workspace:
+            persistence = self._persistence.sync_workspace(snapshot)
+            snapshot["persistence"] = persistence
+            snapshot["sections"]["diagnostics"]["persistence"] = persistence
+            summary_rows = snapshot.get("summary", {}).get("operator_summary", [])
+            if summary_rows:
+                summary_rows[-1]["value"] = f"Статус синка: {persistence.get('status', 'unknown')}"
+        return snapshot
+
     def _build_preview_response(self, action: str, account_id: str, object_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         self._policy_manager.ensure_simulated_no_write()
         self._policy_manager.validate_mutation_payload(payload)
         preview = self._provider.preview_mutation(action, account_id, object_type, payload)
         self._preview_manager.create(preview)
-        return ObjectMutationResponse(
+        response = ObjectMutationResponse(
             status="preview",
             provider="meta_ads",
             account_id=account_id,
@@ -235,6 +463,8 @@ class MetaDashboardService:
             risk_flags=preview.risk_flags,
             provider_payload=preview.provider_payload,
         ).model_dump()
+        response["persistence"] = self._persistence.log_preview_action(response)
+        return response
 
     def preview_clone_campaign(
         self,
@@ -500,10 +730,26 @@ class MetaDashboardService:
             "checks": checks,
         }
 
+    def persistence_diagnostics(self) -> dict[str, Any]:
+        diagnostics = self._persistence.diagnostics()
+        diagnostics["timestamp"] = datetime.now(timezone.utc).isoformat()
+        diagnostics["provider"] = "meta_ads"
+        return diagnostics
+
     def diagnostics_health(self) -> dict[str, Any]:
         config = self.config_diagnostics()
         auth = self.auth_diagnostics()
-        status = "ok" if auth.get("auth_failed_count", 0) == 0 and config.get("provider_loaded") else "degraded"
+        persistence = self.persistence_diagnostics()
+        persistence_failed = (
+            persistence.get("enabled")
+            and persistence.get("configured")
+            and not persistence.get("reachable")
+        )
+        status = (
+            "ok"
+            if auth.get("auth_failed_count", 0) == 0 and config.get("provider_loaded") and not persistence_failed
+            else "degraded"
+        )
         return {
             "status": status,
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -514,10 +760,12 @@ class MetaDashboardService:
                 "connections_primary_exists": config.get("connections", {}).get("primary_exists"),
                 "env_substitution_ok": config.get("env_substitution", {}).get("all_resolved"),
                 "missing_env_vars": config.get("env_substitution", {}).get("missing_vars", []),
+                "clickhouse": build_clickhouse_contract(self._settings).get("database", {}),
             },
             "auth": {
                 "accounts_checked": auth.get("accounts_checked", 0),
                 "auth_ok_count": auth.get("auth_ok_count", 0),
                 "auth_failed_count": auth.get("auth_failed_count", 0),
             },
+            "persistence": persistence,
         }

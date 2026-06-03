@@ -376,6 +376,16 @@ button:focus-visible {
   font-size: 15px;
 }
 
+.overview-hero {
+  background: linear-gradient(135deg, #ffffff 0%, #eef5ff 100%);
+}
+
+.overview-hero__headline {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
 .kv-grid {
   display: grid;
   gap: 8px;
@@ -542,6 +552,84 @@ tbody tr:hover {
   flex-wrap: wrap;
   gap: 8px;
   align-items: end;
+}
+
+.inline-field--grow {
+  flex: 1 1 100%;
+}
+
+.assistant-shell {
+  display: grid;
+  gap: 12px;
+}
+
+.assistant-shell__prompt {
+  display: grid;
+  gap: 10px;
+}
+
+.assistant-shell__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.skill-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.skill-card {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 14px;
+  cursor: pointer;
+  transition: border-color 140ms, box-shadow 140ms, background-color 140ms;
+}
+
+.skill-card:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
+}
+
+.skill-card.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 45%, white);
+  background: color-mix(in srgb, var(--accent) 7%, white);
+}
+
+.skill-card__title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.skill-card__description {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.skill-card__meta {
+  color: var(--accent-strong);
+}
+
+.result-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.result-summary {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.result-summary strong {
+  display: inline-block;
+  margin-right: 6px;
 }
 
 .diag-health-card {
@@ -737,6 +825,10 @@ tbody tr:hover {
 
   .metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .skill-grid {
+    grid-template-columns: 1fr;
   }
 
   .panel-grid--two {
