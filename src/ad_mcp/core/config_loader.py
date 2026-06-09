@@ -53,15 +53,15 @@ def load_provider_config(config_dir: Path, provider: str) -> dict[str, Any]:
     return load_yaml_file(example)
 
 
-def load_connections_config(path: Path) -> dict[str, Any]:
-    primary = path
-    example = path.with_name(f"{path.stem}.example{path.suffix}")
+def load_connections_config(path: Path | str) -> dict[str, Any]:
+    primary = Path(path)
+    example = primary.with_name(f"{primary.stem}.example{primary.suffix}")
     if primary.exists():
         return load_yaml_file(primary)
     return load_yaml_file(example)
 
 
-def load_provider_from_connections(path: Path, provider: str) -> dict[str, Any]:
+def load_provider_from_connections(path: Path | str, provider: str) -> dict[str, Any]:
     config = load_connections_config(path)
     providers = config.get("providers", {})
     return providers.get(provider, {"provider": provider, "accounts": []})

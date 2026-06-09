@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ad_mcp.core.config_loader import load_yaml_file
+from ad_mcp.core.config_loader import load_connections_config, load_yaml_file
 
 
 def test_load_yaml_file_expands_environment_variables(monkeypatch, tmp_path: Path) -> None:
@@ -12,3 +12,12 @@ def test_load_yaml_file_expands_environment_variables(monkeypatch, tmp_path: Pat
 
     assert data["token"] == "resolved-value"
     assert data["name"] == "fallback"
+
+
+def test_load_connections_config_accepts_string_path(tmp_path: Path) -> None:
+    config_file = tmp_path / "ads_config.yaml"
+    config_file.write_text("providers:\n  meta_ads:\n    accounts: []\n", encoding="utf-8")
+
+    data = load_connections_config(str(config_file))
+
+    assert data["providers"]["meta_ads"]["accounts"] == []

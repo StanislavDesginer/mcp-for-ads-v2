@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     policy_config: str = "config/policies/safety.example.yaml"
     web_host: str = "127.0.0.1"
     web_port: int = 8765
+    web_api_token: str = ""
+    web_max_body_bytes: int = 65536
     clickhouse_enabled: bool = False
     clickhouse_host: str = "127.0.0.1"
     clickhouse_port: int = 8123

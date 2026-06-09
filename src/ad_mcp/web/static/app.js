@@ -1,4 +1,6 @@
 ﻿(function () {
+  const TOKEN_STORAGE_KEY = "ad_mcp_web_api_token";
+
   const state = {
     accountId: "",
     endDate: new Date().toISOString().slice(0, 10),
@@ -1216,10 +1218,18 @@
     return text ? `?${text}` : "";
   }
 
-  async function requestJson(url, method = "GET", body) {
+  async function requestJson(url, method = "GET", body, retriedAuth = false) {
+    const headers = {};
+    const token = getStoredApiToken();
+    if (body) {
+      headers["Content-Type"] = "application/json";
+    }
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
     const response = await fetch(url, {
       method,
-      headers: body ? { "Content-Type": "application/json" } : undefined,
+      headers,
       body: body ? JSON.stringify(body) : undefined,
     });
     const text = await response.text();
@@ -1232,9 +1242,28 @@
       }
     }
     if (!response.ok) {
+      if (isAuthError(response, payload) && !retriedAuth) {
+        const nextToken = window.prompt("Введите beta token MCP сервера");
+        if (nextToken && nextToken.trim()) {
+          localStorage.setItem(TOKEN_STORAGE_KEY, nextToken.trim());
+          return requestJson(url, method, body, true);
+        }
+      }
       throw new Error(humanizeError(payload.error || payload.message || `HTTP ${response.status}`));
     }
     return payload;
+  }
+
+  function getStoredApiToken() {
+    try {
+      return localStorage.getItem(TOKEN_STORAGE_KEY) || "";
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function isAuthError(response, payload) {
+    return response.status === 401 || payload.code === "api_auth_required";
   }
 
   async function copyText(text) {
@@ -1285,6 +1314,12 @@
     const normalized = text.toLowerCase();
     if (!text) {
       return "Не удалось получить данные. Попробуйте обновить раздел ещё раз.";
+    }
+    if (normalized.includes("api_auth_not_configured") || normalized.includes("ad_mcp_web_api_token")) {
+      return "На сервере не настроен beta token для web API. Добавьте AD_MCP_WEB_API_TOKEN и перезапустите сервис.";
+    }
+    if (normalized.includes("api_auth_required") || normalized.includes("beta token")) {
+      return "Для доступа к панели нужен beta token MCP сервера.";
     }
     if (normalized.includes("2446079") || normalized.includes("слишком много вызовов") || normalized.includes("too many calls")) {
       return "Meta временно ограничила частоту API-вызовов. Панель покажет частичные данные; повторите обновление через 1-2 минуты.";
