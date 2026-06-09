@@ -21,7 +21,7 @@ C:\Projects\mcp-for-ads
 ## 4. Клонируй репозиторий
 
 ```powershell
-git clone git@github.com:StanislavDesginer/mcp-for-ads-v2.git .
+git clone git@github.com:mcpforge-dev/mcp-for-ads-v2.git .
 ```
 
 Важно:

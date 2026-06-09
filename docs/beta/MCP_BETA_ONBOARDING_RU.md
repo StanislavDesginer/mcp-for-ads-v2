@@ -5,7 +5,7 @@
 ## 1. Установка
 
 ```powershell
-git clone git@github.com:StanislavDesginer/mcp-for-ads-v2.git
+git clone git@github.com:mcpforge-dev/mcp-for-ads-v2.git
 cd mcp-for-ads-v2
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev,google,meta]"
