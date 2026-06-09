@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from mcp.server.fastmcp import FastMCP
 
 from ad_mcp.core.auth_manager import AuthManager
@@ -24,6 +26,35 @@ from ad_mcp.tools.objects import build_object_tools
 from ad_mcp.tools.reporting import build_reporting_tools
 from ad_mcp.tools.write_commit import build_write_commit_tools
 from ad_mcp.tools.write_preview import build_write_preview_tools
+
+
+def _safe_account_summary(account: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": account.get("name"),
+        "account_id": account.get("account_id"),
+        "status": account.get("status"),
+    }
+
+
+def _provider_diagnostics(registry: CapabilityRegistry, provider_configs: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    diagnostics: dict[str, Any] = {}
+    for provider_name, provider_config in provider_configs.items():
+        accounts = provider_config.get("accounts", [])
+        capabilities = registry.get_capabilities(provider_name)
+        diagnostics[provider_name] = {
+            "account_count": len(accounts),
+            "accounts": [_safe_account_summary(account) for account in accounts],
+            "capability_counts": {
+                "read_objects": len(capabilities.read_objects),
+                "write_objects": len(capabilities.write_objects),
+                "supported_metrics": len(capabilities.supported_metrics),
+                "supported_dimensions": len(capabilities.supported_dimensions),
+                "supported_campaign_types": len(capabilities.supported_campaign_types),
+                "supported_audience_types": len(capabilities.supported_audience_types),
+            },
+            "notes": capabilities.notes,
+        }
+    return diagnostics
 
 
 def create_server() -> FastMCP:
@@ -72,6 +103,37 @@ def create_server() -> FastMCP:
     @mcp.tool(name="describe_auth_strategy")
     def describe_auth_strategy(provider: str) -> dict:
         return auth_manager.describe_auth_strategy(provider)
+
+    @mcp.tool(name="get_beta_diagnostics")
+    def get_beta_diagnostics() -> dict:
+        return {
+            "status": "ok",
+            "environment": settings.env,
+            "config": {
+                "connections_config": {
+                    "file": settings.connections_config_path.name,
+                    "exists": settings.connections_config_path.exists(),
+                },
+                "policy_config": {
+                    "file": settings.policy_config_path.name,
+                    "exists": settings.policy_config_path.exists(),
+                },
+            },
+            "security": {
+                "web_api_token_configured": bool(settings.web_api_token),
+                "write_mode": policy_manager.policy.write_mode,
+                "execution_mode": policy_manager.policy.execution_mode,
+                "allow_unknown_accounts": policy_manager.policy.allow_unknown_accounts,
+                "require_confirm_for": policy_manager.policy.require_confirm_for,
+            },
+            "providers": _provider_diagnostics(registry, provider_configs),
+            "smoke_checks": {
+                "server_imports": True,
+                "tools_register": True,
+                "diagnostics_available": True,
+                "live_writes_enabled": policy_manager.policy.execution_mode != "simulated_no_write",
+            },
+        }
 
     return mcp
 
