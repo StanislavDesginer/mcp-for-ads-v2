@@ -89,7 +89,7 @@ class AdsWebHandler(BaseHTTPRequestHandler):
             self._send_json(
                 {"error": "Нужен beta token для доступа к MCP web API.", "code": "api_auth_required"},
                 HTTPStatus.UNAUTHORIZED,
-                {"WWW-Authenticate": 'Bearer realm="mcp-for-ads"'},
+                {"WWW-Authenticate": 'Bearer realm="AdForge MCP"'},
             )
             return False
         return True

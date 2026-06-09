@@ -1,1 +1,1 @@
-"""Core application services for mcp-for-ads."""
+"""Core application services for AdForge MCP."""

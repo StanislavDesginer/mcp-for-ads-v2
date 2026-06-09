@@ -82,7 +82,7 @@ def create_server() -> FastMCP:
         tokens_dir=settings.project_root / "tokens",
     )
 
-    mcp = FastMCP("mcp-for-ads")
+    mcp = FastMCP("AdForge MCP")
     toolsets = [
         build_discovery_tools(registry),
         build_billing_tools(registry, policy_manager),

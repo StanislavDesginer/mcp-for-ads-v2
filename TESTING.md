@@ -35,7 +35,7 @@
 ### Windows
 
 ```powershell
-cd "<путь-к-проекту>\\mcp-for-ads"
+cd "<путь-к-проекту>\\AdForge-MCP"
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev,google,meta]"
 ```
@@ -43,7 +43,7 @@ py -3.11 -m venv .venv
 ### Linux
 
 ```bash
-cd /opt/mcp-for-ads
+cd /opt/adforge-mcp
 python3.11 -m venv .venv
 ./.venv/bin/python -m pip install -e ".[dev,google,meta]"
 ```
@@ -53,7 +53,7 @@ python3.11 -m venv .venv
 Рабочие файлы должны лежать в корне проекта:
 
 ```text
-mcp-for-ads/
+AdForge-MCP/
   .env
   ads_config.yaml
   pyproject.toml
@@ -63,7 +63,7 @@ mcp-for-ads/
 ## Локальный запуск веб-панели
 
 ```powershell
-cd "<путь-к-проекту>\\mcp-for-ads"
+cd "<путь-к-проекту>\\AdForge-MCP"
 .\.venv\Scripts\python.exe -m ad_mcp.web.server
 ```
 
@@ -86,15 +86,15 @@ cd "<путь-к-проекту>\\mcp-for-ads"
 Когда MCP уже подключён, тестер может задавать такие команды:
 
 ```text
-Use MCP server ads and show list_accounts for provider meta_ads.
+Use MCP server adforge and show list_accounts for provider meta_ads.
 ```
 
 ```text
-Use MCP server ads and call get_account_summary for provider meta_ads and account_id act_1746501262698286.
+Use MCP server adforge and call get_account_summary for provider meta_ads and account_id act_1746501262698286.
 ```
 
 ```text
-Use MCP server ads and call find_wasting_spend for provider meta_ads, account_id act_1746501262698286, start_date 2026-04-01, end_date 2026-05-21.
+Use MCP server adforge and call find_wasting_spend for provider meta_ads, account_id act_1746501262698286, start_date 2026-04-01, end_date 2026-05-21.
 ```
 
 ## Что тестер может проверить

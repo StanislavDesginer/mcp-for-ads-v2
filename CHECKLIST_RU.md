@@ -7,7 +7,7 @@
 Например:
 
 ```text
-C:\Projects\mcp-for-ads
+C:\Projects\AdForge-MCP
 ```
 
 ## 2. Открой эту папку в Codex
@@ -21,7 +21,7 @@ C:\Projects\mcp-for-ads
 ## 4. Клонируй репозиторий
 
 ```powershell
-git clone git@github.com:mcpforge-dev/mcp-for-ads-v2.git .
+git clone git@github.com:mcpforge-dev/AdForge-MCP.git .
 ```
 
 Важно:
@@ -70,15 +70,15 @@ http://127.0.0.1:8765
 Потом можно писать в Codex такие команды:
 
 ```text
-Use MCP server ads and show list_accounts for provider meta_ads.
+Use MCP server adforge and show list_accounts for provider meta_ads.
 ```
 
 ```text
-Use MCP server ads and call get_account_summary for provider meta_ads and account_id act_1746501262698286.
+Use MCP server adforge and call get_account_summary for provider meta_ads and account_id act_1746501262698286.
 ```
 
 ```text
-Use MCP server ads and call find_wasting_spend for provider meta_ads, account_id act_1746501262698286, start_date 2026-04-01, end_date 2026-05-21.
+Use MCP server adforge and call find_wasting_spend for provider meta_ads, account_id act_1746501262698286, start_date 2026-04-01, end_date 2026-05-21.
 ```
 
 ## Если что-то не работает

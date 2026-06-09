@@ -1,4 +1,4 @@
-"""mcp-for-ads package."""
+"""AdForge MCP package."""
 
 __all__ = ["__version__"]
 

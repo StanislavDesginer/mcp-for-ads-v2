@@ -1,12 +1,12 @@
-# MCP for Ads beta onboarding
+# AdForge MCP beta onboarding
 
 Эта инструкция нужна, чтобы beta-тестер мог локально поднять MCP, подключить его к Codex/Claude/GPT-compatible клиенту, проверить диагностику и работать только через безопасные preview-сценарии.
 
 ## 1. Установка
 
 ```powershell
-git clone git@github.com:mcpforge-dev/mcp-for-ads-v2.git
-cd mcp-for-ads-v2
+git clone git@github.com:mcpforge-dev/AdForge-MCP.git
+cd AdForge-MCP
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev,google,meta]"
 ```
@@ -14,7 +14,7 @@ py -3.11 -m venv .venv
 Если репозиторий уже скачан:
 
 ```powershell
-cd C:\MCP\mcp-for-ads-v2
+cd C:\MCP\AdForge-MCP
 git pull origin main
 .\.venv\Scripts\python.exe -m pip install -e ".[dev,google,meta]"
 ```
@@ -82,16 +82,16 @@ Meta `account_id` можно указывать с `act_` или без него
 ```json
 {
   "mcpServers": {
-    "mcp-for-ads": {
-      "command": "C:\\MCP\\mcp-for-ads-v2\\.venv\\Scripts\\python.exe",
+    "adforge-mcp": {
+      "command": "C:\\MCP\\AdForge-MCP\\.venv\\Scripts\\python.exe",
       "args": ["-m", "ad_mcp.server"],
-      "cwd": "C:\\MCP\\mcp-for-ads-v2"
+      "cwd": "C:\\MCP\\AdForge-MCP"
     }
   }
 }
 ```
 
-В Codex, Claude Desktop или другом GPT-compatible MCP-клиенте нужно добавить сервер `mcp-for-ads` с этой командой. Формат поля может отличаться у клиента, но смысл один: запускать `python -m ad_mcp.server` из корня проекта.
+В Codex, Claude Desktop или другом GPT-compatible MCP-клиенте нужно добавить сервер `adforge-mcp` с этой командой. Формат поля может отличаться у клиента, но смысл один: запускать `python -m ad_mcp.server` из корня проекта.
 
 ## 6. Проверка MCP
 

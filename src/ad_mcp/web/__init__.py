@@ -1,1 +1,1 @@
-"""Web UI layer for mcp-for-ads."""
+"""Web UI layer for AdForge MCP."""

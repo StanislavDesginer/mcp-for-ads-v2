@@ -1,4 +1,4 @@
-# Как подключать mcp-for-ads
+# Как подключать AdForge MCP
 
 ## Главные рабочие файлы
 
@@ -29,7 +29,7 @@
 Оба runtime-файла должны лежать в корне проекта:
 
 ```text
-mcp-for-ads/
+AdForge-MCP/
   .env
   ads_config.yaml
   README.md

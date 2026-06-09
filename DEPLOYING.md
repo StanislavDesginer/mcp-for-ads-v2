@@ -1,4 +1,4 @@
-# Развёртывание mcp-for-ads
+# Развёртывание AdForge MCP
 
 Этот проект уже можно размещать для внутренней команды, но это ещё не публичный SaaS для множества клиентов.
 
@@ -27,27 +27,27 @@
 Папка приложения:
 
 ```bash
-/opt/mcp-for-ads
+/opt/adforge-mcp
 ```
 
 Рабочие файлы:
-- `/opt/mcp-for-ads/.env`
-- `/opt/mcp-for-ads/ads_config.yaml`
-- `/opt/mcp-for-ads/logs/audit.jsonl`
+- `/opt/adforge-mcp/.env`
+- `/opt/adforge-mcp/ads_config.yaml`
+- `/opt/adforge-mcp/logs/audit.jsonl`
 
 ## Первичная установка
 
 ```bash
 sudo apt update
 sudo apt install -y python3.11 python3.11-venv nginx
-sudo mkdir -p /opt/mcp-for-ads
-sudo chown -R $USER:$USER /opt/mcp-for-ads
+sudo mkdir -p /opt/adforge-mcp
+sudo chown -R $USER:$USER /opt/adforge-mcp
 ```
 
-После этого скопируй репозиторий в `/opt/mcp-for-ads`, а затем:
+После этого скопируй репозиторий в `/opt/adforge-mcp`, а затем:
 
 ```bash
-cd /opt/mcp-for-ads
+cd /opt/adforge-mcp
 python3.11 -m venv .venv
 ./.venv/bin/python -m pip install -e ".[dev,google,meta]"
 ```
@@ -75,7 +75,7 @@ AD_MCP_WEB_PORT=8765
 ## Ручной запуск веб-панели
 
 ```bash
-cd /opt/mcp-for-ads
+cd /opt/adforge-mcp
 ./.venv/bin/python -m ad_mcp.web.server
 ```
 
@@ -90,21 +90,21 @@ curl http://127.0.0.1:8765/healthz
 Создать файл:
 
 ```bash
-/etc/systemd/system/mcp-for-ads-web.service
+/etc/systemd/system/adforge-mcp-web.service
 ```
 
 Пример:
 
 ```ini
 [Unit]
-Description=mcp-for-ads web UI
+Description=AdForge MCP web UI
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/mcp-for-ads
-EnvironmentFile=/opt/mcp-for-ads/.env
-ExecStart=/opt/mcp-for-ads/.venv/bin/python -m ad_mcp.web.server
+WorkingDirectory=/opt/adforge-mcp
+EnvironmentFile=/opt/adforge-mcp/.env
+ExecStart=/opt/adforge-mcp/.venv/bin/python -m ad_mcp.web.server
 Restart=always
 RestartSec=5
 User=www-data
@@ -118,8 +118,8 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now mcp-for-ads-web
-sudo systemctl status mcp-for-ads-web
+sudo systemctl enable --now adforge-mcp-web
+sudo systemctl status adforge-mcp-web
 ```
 
 ## Пример Nginx reverse proxy
@@ -127,7 +127,7 @@ sudo systemctl status mcp-for-ads-web
 Создать файл:
 
 ```bash
-/etc/nginx/sites-available/mcp-for-ads
+/etc/nginx/sites-available/adforge-mcp
 ```
 
 Пример:
@@ -150,7 +150,7 @@ server {
 После этого:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/mcp-for-ads /etc/nginx/sites-enabled/mcp-for-ads
+sudo ln -s /etc/nginx/sites-available/adforge-mcp /etc/nginx/sites-enabled/adforge-mcp
 sudo nginx -t
 sudo systemctl reload nginx
 ```
