@@ -11,10 +11,17 @@ class _Headers:
 
 
 def test_api_token_not_required_for_development_without_token() -> None:
-    settings = Settings(env="development", web_api_token="")
+    settings = Settings(env="development", web_host="127.0.0.1", web_api_token="")
 
     assert _api_token_required(settings) is False
     assert _request_token_is_valid(_Headers({}), settings) is True
+
+
+def test_api_token_required_for_network_exposed_development_host() -> None:
+    settings = Settings(env="development", web_host="0.0.0.0", web_api_token="")
+
+    assert _api_token_required(settings) is True
+    assert _request_token_is_valid(_Headers({}), settings) is False
 
 
 def test_api_token_required_for_production_even_when_missing() -> None:

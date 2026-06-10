@@ -83,7 +83,7 @@ class PreviewRecord(BaseModel):
 
 
 class ObjectMutationResponse(BaseModel):
-    status: Literal["preview", "committed"]
+    status: Literal["preview", "committed", "blocked"]
     provider: ProviderName
     account_id: str
     object_type: str

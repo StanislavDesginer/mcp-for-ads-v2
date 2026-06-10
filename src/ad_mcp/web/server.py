@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from ad_mcp.core.errors import AdMCPError
-from ad_mcp.settings import Settings
+from ad_mcp.settings import Settings, is_network_exposed_host
 from ad_mcp.web.hosted import HostedConnectionService
 from ad_mcp.web.service import MetaDashboardService
 
@@ -23,7 +23,7 @@ TOKEN_HEADER = "X-AD-MCP-BETA-TOKEN"
 
 
 def _api_token_required(settings: Settings) -> bool:
-    return bool(settings.web_api_token.strip()) or settings.env.lower() == "production"
+    return bool(settings.web_api_token.strip()) or settings.env.lower() == "production" or is_network_exposed_host(settings.web_host)
 
 
 def _extract_request_token(headers) -> str:

@@ -22,6 +22,7 @@ REQUIRED_TOOLS = {
     "get_beta_diagnostics",
     "clone_campaign_preview",
     "update_campaign_budget_preview",
+    "commit_preview",
 }
 
 
@@ -100,6 +101,7 @@ async def run(provider: str, account_id: str | None, skip_preview: bool) -> dict
     auth_strategy = _extract_payload(await mcp.call_tool("describe_auth_strategy", {"provider": provider}))
 
     preview_result: dict[str, Any] | None = None
+    commit_result: dict[str, Any] | None = None
     resolved_account_id = account_id or _first_account_id(diagnostics, provider)
     if not skip_preview:
         if not resolved_account_id:
@@ -119,6 +121,11 @@ async def run(provider: str, account_id: str | None, skip_preview: bool) -> dict
             raise RuntimeError("Preview smoke check did not return status=preview")
         if preview_result.get("provider_response"):
             raise RuntimeError("Preview smoke check returned a provider_response; expected no live write")
+        commit_result = _extract_payload(await mcp.call_tool("commit_preview", {"preview_token": preview_result.get("preview_token")}))
+        if not isinstance(commit_result, dict) or commit_result.get("status") != "blocked":
+            raise RuntimeError("Commit smoke check did not return status=blocked in beta preview-only mode")
+        if commit_result.get("provider_response", {}).get("mode") != "preview_only":
+            raise RuntimeError("Commit smoke check did not return provider_response.mode=preview_only")
 
     return {
         "status": "ok",
@@ -143,6 +150,8 @@ async def run(provider: str, account_id: str | None, skip_preview: bool) -> dict
         "hosted_http": _hosted_http_smoke(),
         "preview_checked": preview_result is not None,
         "preview_status": preview_result.get("status") if isinstance(preview_result, dict) else None,
+        "commit_checked": commit_result is not None,
+        "commit_status": commit_result.get("status") if isinstance(commit_result, dict) else None,
         "live_write_checked": False,
     }
 

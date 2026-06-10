@@ -11,6 +11,10 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT_DIR / ".env")
 
 
+def is_network_exposed_host(host: str) -> bool:
+    return host.strip().lower() in {"0.0.0.0", "::", "[::]"}
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="AD_MCP_", extra="ignore")
 

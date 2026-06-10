@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+import warnings
+
 import pytest
-from starlette.testclient import TestClient
 
 from ad_mcp.http_server import create_http_app
 from ad_mcp.mcp_auth import StaticBearerTokenVerifier, build_mcp_auth
 from ad_mcp.settings import Settings
+
+
+def _test_client(app):
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="Using `httpx` with `starlette.testclient` is deprecated.*")
+        from starlette.testclient import TestClient
+
+    return TestClient(app)
 
 
 @pytest.mark.asyncio
@@ -27,6 +36,13 @@ def test_hosted_mcp_auth_requires_token_in_production(tmp_path) -> None:
         build_mcp_auth(settings)
 
 
+def test_hosted_mcp_auth_requires_token_for_network_exposed_development_host(tmp_path) -> None:
+    settings = Settings(project_root=tmp_path, env="development", web_api_token="", mcp_http_host="0.0.0.0")
+
+    with pytest.raises(RuntimeError, match="network-exposed"):
+        build_mcp_auth(settings)
+
+
 def test_hosted_mcp_app_protects_mcp_route_with_bearer_token(tmp_path) -> None:
     settings = Settings(
         project_root=tmp_path,
@@ -37,7 +53,7 @@ def test_hosted_mcp_app_protects_mcp_route_with_bearer_token(tmp_path) -> None:
     )
     app = create_http_app(settings)
 
-    with TestClient(app) as client:
+    with _test_client(app) as client:
         response = client.post(settings.mcp_route_path, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
 
     assert response.status_code == 401
@@ -49,7 +65,7 @@ def test_hosted_mcp_app_exposes_configured_route(tmp_path) -> None:
         env="development",
         web_api_token="",
         mcp_endpoint_path="custom-mcp",
-        mcp_http_host="0.0.0.0",
+        mcp_http_host="127.0.0.1",
         connections_config="missing.yaml",
     )
     app = create_http_app(settings)
