@@ -14,6 +14,7 @@ from ad_mcp.providers.google_ads.client import GoogleAdsProvider
 from ad_mcp.providers.meta_ads.client import MetaAdsProvider
 from ad_mcp.providers.tiktok_ads.client import TikTokAdsProvider
 from ad_mcp.providers.yandex_direct.client import YandexDirectProvider
+from ad_mcp.mcp_auth import build_mcp_auth
 from ad_mcp.settings import Settings
 from ad_mcp.tools.account_read import build_account_read_tools
 from ad_mcp.tools.analytics_read import build_analytics_read_tools
@@ -57,8 +58,8 @@ def _provider_diagnostics(registry: CapabilityRegistry, provider_configs: dict[s
     return diagnostics
 
 
-def create_server() -> FastMCP:
-    settings = Settings()
+def create_server(settings: Settings | None = None, *, hosted_http: bool = False) -> FastMCP:
+    settings = settings or Settings()
     settings.audit_log_file.parent.mkdir(parents=True, exist_ok=True)
     audit_logger = AuditLogger(settings.audit_log_file)
     policy_manager = PolicyManager(load_safety_policy(settings.policy_config_path))
@@ -82,7 +83,18 @@ def create_server() -> FastMCP:
         tokens_dir=settings.project_root / "tokens",
     )
 
-    mcp = FastMCP("AdForge MCP")
+    auth_settings = None
+    token_verifier = None
+    if hosted_http:
+        auth_settings, token_verifier = build_mcp_auth(settings)
+    mcp = FastMCP(
+        "AdForge MCP",
+        host=settings.mcp_http_host,
+        port=settings.mcp_http_port,
+        streamable_http_path=settings.mcp_route_path,
+        auth=auth_settings,
+        token_verifier=token_verifier,
+    )
     toolsets = [
         build_discovery_tools(registry),
         build_billing_tools(registry, policy_manager),

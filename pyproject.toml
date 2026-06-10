@@ -37,6 +37,7 @@ dev = [
 [project.scripts]
 ad-mcp-server = "ad_mcp.server:main"
 ad-mcp-web = "ad_mcp.web.server:main"
+ad-mcp-http = "ad_mcp.http_server:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

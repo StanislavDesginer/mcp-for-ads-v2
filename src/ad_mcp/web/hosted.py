@@ -79,17 +79,11 @@ class HostedConnectionService:
         self._settings = settings or Settings()
 
     def _public_base_url(self) -> str:
-        configured = self._settings.public_base_url.strip()
-        if configured:
-            return configured.rstrip("/")
-        host = self._settings.web_host
-        if host in {"0.0.0.0", "::"}:
-            host = "127.0.0.1"
-        return f"http://{host}:{self._settings.web_port}"
+        return self._settings.public_base_or_local_mcp_url
 
     def mcp_connection_info(self) -> dict[str, Any]:
-        endpoint_path = _route_path(self._settings.mcp_endpoint_path)
-        public_url = _join_url(self._public_base_url(), endpoint_path)
+        endpoint_path = self._settings.mcp_route_path
+        public_url = self._settings.public_mcp_url
         return {
             "name": "AdForge MCP",
             "transport": "streamable_http",
@@ -105,8 +99,8 @@ class HostedConnectionService:
                 "claude": "Add AdForge MCP as a custom connector with Name and URL, then allow the requested tools.",
                 "gemini": "Use the client-specific custom connector flow once available.",
             },
-            "status": "transport_planned",
-            "message": "Hosted MCP transport is reserved at this URL; beta implementation is still being wired.",
+            "status": "transport_available",
+            "message": "Hosted Streamable HTTP MCP transport is available at this URL.",
         }
 
     def connections(self) -> dict[str, Any]:
@@ -147,8 +141,8 @@ class HostedConnectionService:
     def mcp_transport_placeholder(self) -> dict[str, Any]:
         info = self.mcp_connection_info()
         return {
-            "error": "Hosted Streamable HTTP MCP transport is not enabled yet.",
-            "code": "mcp_transport_not_enabled",
+            "error": "This legacy web process does not serve MCP traffic. Run ad-mcp-http or route /mcp to the hosted MCP process.",
+            "code": "mcp_transport_on_separate_process",
             "mcp": info,
         }
 

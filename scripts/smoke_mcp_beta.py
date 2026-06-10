@@ -3,11 +3,15 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
+import warnings
 from typing import Any
 
 from mcp.types import TextContent
 
+from ad_mcp.http_server import create_http_app
 from ad_mcp.server import create_server
+from ad_mcp.settings import Settings
 
 
 REQUIRED_TOOLS = {
@@ -51,6 +55,30 @@ def _first_account_id(diagnostics: dict[str, Any], provider: str) -> str | None:
         if account_id:
             return str(account_id)
     return None
+
+
+def _hosted_http_smoke() -> dict[str, Any]:
+    settings = Settings(env="production", web_api_token="smoke-token", mcp_http_host="0.0.0.0")
+    app = create_http_app(settings)
+    route_paths = {getattr(route, "path", "") for route in app.routes}
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="Using `httpx` with `starlette.testclient` is deprecated.*")
+        from starlette.testclient import TestClient
+
+    previous_disable_level = logging.root.manager.disable
+    logging.disable(logging.CRITICAL)
+    try:
+        with TestClient(app) as client:
+            unauthorized = client.post(settings.mcp_route_path, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    finally:
+        logging.disable(previous_disable_level)
+    return {
+        "app_imports": True,
+        "route": settings.mcp_route_path,
+        "route_registered": settings.mcp_route_path in route_paths,
+        "auth_required": unauthorized.status_code == 401,
+        "unauthorized_status": unauthorized.status_code,
+    }
 
 
 async def run(provider: str, account_id: str | None, skip_preview: bool) -> dict[str, Any]:
@@ -112,6 +140,7 @@ async def run(provider: str, account_id: str | None, skip_preview: bool) -> dict
             "write_objects": len(capabilities.get("write_objects", [])) if isinstance(capabilities, dict) else None,
         },
         "auth_strategy_available": bool(auth_strategy),
+        "hosted_http": _hosted_http_smoke(),
         "preview_checked": preview_result is not None,
         "preview_status": preview_result.get("status") if isinstance(preview_result, dict) else None,
         "live_write_checked": False,

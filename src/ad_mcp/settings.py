@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     web_max_body_bytes: int = 65536
     public_base_url: str = ""
     mcp_endpoint_path: str = "/mcp"
+    mcp_http_host: str = "127.0.0.1"
+    mcp_http_port: int = 8766
     meta_oauth_redirect_path: str = "/oauth/meta/callback"
     google_oauth_redirect_path: str = "/oauth/google/callback"
     connection_store_path: str = "tokens/connections.json"
@@ -61,3 +63,17 @@ class Settings(BaseSettings):
         if not clean.startswith("/"):
             clean = f"/{clean}"
         return clean
+
+    @property
+    def public_base_or_local_mcp_url(self) -> str:
+        configured = self.public_base_url.strip()
+        if configured:
+            return configured.rstrip("/")
+        host = self.mcp_http_host
+        if host in {"0.0.0.0", "::"}:
+            host = "127.0.0.1"
+        return f"http://{host}:{self.mcp_http_port}"
+
+    @property
+    def public_mcp_url(self) -> str:
+        return f"{self.public_base_or_local_mcp_url}{self.mcp_route_path}"

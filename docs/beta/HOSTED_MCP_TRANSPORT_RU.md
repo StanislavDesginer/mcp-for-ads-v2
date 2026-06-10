@@ -1,0 +1,89 @@
+# Hosted MCP transport
+
+Этот документ фиксирует первый рабочий вариант hosted MCP для beta.
+
+## Что уже реализовано
+
+- MCP работает через Streamable HTTP endpoint.
+- Endpoint по умолчанию: `/mcp`.
+- Внутренний порт по умолчанию: `127.0.0.1:8766`.
+- Доступ закрыт bearer token из `AD_MCP_WEB_API_TOKEN`.
+- Stdio-режим `ad-mcp-server` сохранен для локальной разработки.
+
+## Переменные окружения
+
+```dotenv
+AD_MCP_ENV=production
+AD_MCP_WEB_API_TOKEN=change-this-beta-token
+AD_MCP_PUBLIC_BASE_URL=https://mcp.adforge.example
+AD_MCP_MCP_ENDPOINT_PATH=/mcp
+AD_MCP_MCP_HTTP_HOST=127.0.0.1
+AD_MCP_MCP_HTTP_PORT=8766
+```
+
+`AD_MCP_PUBLIC_BASE_URL` - внешний URL, который пользователь вставляет в Codex / Claude / другой MCP client.
+
+## Запуск MCP transport
+
+```bash
+cd /opt/adforge-mcp
+./.venv/bin/ad-mcp-http
+```
+
+Локально для проверки:
+
+```bash
+AD_MCP_ENV=production \
+AD_MCP_WEB_API_TOKEN=smoke-token \
+AD_MCP_PUBLIC_BASE_URL=http://127.0.0.1:8766 \
+./.venv/bin/ad-mcp-http
+```
+
+## Nginx routing
+
+Если web dashboard работает на `127.0.0.1:8765`, а MCP transport на `127.0.0.1:8766`, то reverse proxy должен развести пути:
+
+```nginx
+location /mcp {
+    proxy_pass http://127.0.0.1:8766;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+location / {
+    proxy_pass http://127.0.0.1:8765;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+## Проверка
+
+```bash
+./.venv/bin/python scripts/smoke_mcp_beta.py
+```
+
+В ответе должен быть блок:
+
+```json
+"hosted_http": {
+  "route": "/mcp",
+  "route_registered": true,
+  "auth_required": true,
+  "unauthorized_status": 401
+}
+```
+
+Для реального подключения MCP client должен отправлять:
+
+```http
+Authorization: Bearer <beta-token>
+```
+
+## Что дальше
+
+Следующий шаг - связать hosted MCP tools не с локальным `ads_config.yaml`, а с OAuth connections пользователя из dashboard.
