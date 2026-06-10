@@ -66,3 +66,55 @@ def test_oauth_start_preview_marks_beta_platform_as_not_configured(tmp_path: Pat
 
     assert payload["status"] == "oauth_not_configured"
     assert payload["redirect_url"] == "https://mcp.adforge.dev/oauth/meta/callback"
+
+
+def test_import_local_provider_writes_hosted_store_without_exposing_secrets(tmp_path: Path) -> None:
+    config = tmp_path / "ads_config.yaml"
+    config.write_text(
+        """
+providers:
+  meta_ads:
+    provider: meta_ads
+    accounts:
+      - name: Client Meta
+        account_id: "act_123"
+        app_secret: super-secret
+        access_token: token-value
+""",
+        encoding="utf-8",
+    )
+    settings = Settings(project_root=tmp_path, connections_config="ads_config.yaml", connection_store_path="tokens/connections.json")
+    service = HostedConnectionService(settings)
+
+    payload = service.import_local_provider("meta_ads")
+    connections = service.connections()
+    text = str(payload)
+
+    assert payload["status"] == "imported"
+    assert settings.connection_store_file.exists()
+    assert "super-secret" not in text
+    assert "token-value" not in text
+    assert connections["platforms"][0]["source"] == "hosted_connection_store"
+
+
+def test_import_local_provider_does_not_import_example_config(tmp_path: Path) -> None:
+    example = tmp_path / "ads_config.example.yaml"
+    example.write_text(
+        """
+providers:
+  meta_ads:
+    provider: meta_ads
+    accounts:
+      - name: Example Meta
+        account_id: "example"
+        access_token: "YOUR_TOKEN"
+""",
+        encoding="utf-8",
+    )
+    settings = Settings(project_root=tmp_path, connections_config="ads_config.yaml", connection_store_path="tokens/connections.json")
+    service = HostedConnectionService(settings)
+
+    payload = service.import_local_provider("meta_ads")
+
+    assert payload["status"] == "no_local_config"
+    assert not settings.connection_store_file.exists()

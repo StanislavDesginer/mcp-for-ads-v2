@@ -14,6 +14,7 @@ from ad_mcp.core.config_loader import (
     load_provider_from_connections,
     load_safety_policy,
 )
+from ad_mcp.core.connection_store import load_runtime_provider_configs
 from ad_mcp.core.meta_skill_presets import (
     build_budget_skill_summary,
     build_clickhouse_contract,
@@ -35,13 +36,16 @@ _ENV_REF_RE = re.compile(r"\$\{([A-Z0-9_]+)(?::-([^}]*))?\}")
 
 
 class MetaDashboardService:
-    def __init__(self) -> None:
-        settings = Settings()
+    def __init__(self, settings: Settings | None = None) -> None:
+        settings = settings or Settings()
         self._settings = settings
         self._policy_manager = PolicyManager(load_safety_policy(settings.policy_config_path))
-        provider_config = load_provider_from_connections(settings.connections_config_path, "meta_ads")
+        provider_configs, provider_sources = load_runtime_provider_configs(settings)
+        self._provider_sources = provider_sources
+        provider_config = provider_configs["meta_ads"]
         if not provider_config.get("accounts"):
             provider_config = load_provider_config(settings.project_root / "config/providers", "meta_ads")
+            self._provider_sources["meta_ads"] = "provider_example_config"
         self._provider_config = provider_config
         self._provider = MetaAdsProvider(config=provider_config)
         self._preview_manager = PreviewManager()
@@ -756,9 +760,12 @@ class MetaDashboardService:
         return primary, example
 
     def _load_runtime_meta_config(self) -> dict[str, Any]:
-        provider_config = load_provider_from_connections(self._settings.connections_config_path, "meta_ads")
+        provider_configs, provider_sources = load_runtime_provider_configs(self._settings)
+        self._provider_sources = provider_sources
+        provider_config = provider_configs["meta_ads"]
         if provider_config.get("accounts"):
             return provider_config
+        self._provider_sources["meta_ads"] = "provider_example_config"
         return load_provider_config(self._settings.project_root / "config/providers", "meta_ads")
 
     def _load_raw_meta_config(self) -> tuple[dict[str, Any], str, Path]:
@@ -871,7 +878,10 @@ class MetaDashboardService:
                 "primary_exists": connections_primary.exists(),
                 "example_path": str(connections_example),
                 "example_exists": connections_example.exists(),
-                "runtime_source": str(self._settings.connections_config_path if connections_primary.exists() else connections_example),
+                "runtime_source": self._provider_sources.get("meta_ads", "unknown"),
+                "connection_store_path": str(self._settings.connection_store_file),
+                "connection_store_exists": self._settings.connection_store_file.exists(),
+                "fallback_to_local": self._settings.connections_fallback_to_local,
                 "raw_source_kind": raw_source_kind,
                 "raw_source_path": str(raw_source_path),
             },

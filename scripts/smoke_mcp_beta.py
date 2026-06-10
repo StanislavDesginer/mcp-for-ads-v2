@@ -140,6 +140,8 @@ async def run(provider: str, account_id: str | None, skip_preview: bool) -> dict
             "environment": diagnostics.get("environment"),
             "execution_mode": diagnostics.get("security", {}).get("execution_mode"),
             "connections_config_exists": diagnostics.get("config", {}).get("connections_config", {}).get("exists"),
+            "connection_store_exists": diagnostics.get("config", {}).get("connection_store", {}).get("exists"),
+            "provider_sources": diagnostics.get("config", {}).get("connection_store", {}).get("provider_sources"),
             "policy_config_exists": diagnostics.get("config", {}).get("policy_config", {}).get("exists"),
         },
         "capability_counts": {

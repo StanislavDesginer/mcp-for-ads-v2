@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from ad_mcp.core.config_loader import load_provider_from_connections
+from ad_mcp.core.connection_store import HostedConnectionStore, safe_account_summary
 from ad_mcp.settings import Settings
 
 
@@ -29,17 +28,6 @@ OAUTH_REDIRECT_SETTINGS = {
     "google_ads": "google_oauth_redirect_path",
 }
 
-SECRET_KEYS = {
-    "access_token",
-    "app_secret",
-    "client_secret",
-    "developer_token",
-    "oauth_client_secret",
-    "refresh_token",
-    "secret",
-}
-
-
 def _route_path(path: str) -> str:
     clean = (path or "/mcp").strip()
     if not clean.startswith("/"):
@@ -55,28 +43,10 @@ def _join_url(base_url: str, path: str) -> str:
     return f"{base}{route}"
 
 
-def _safe_account(account: dict[str, Any]) -> dict[str, Any]:
-    safe: dict[str, Any] = {}
-    for key in ("name", "account_id", "customer_id", "login_customer_id", "advertiser_id", "login", "status"):
-        value = account.get(key)
-        if value is not None:
-            safe[key] = str(value)
-    safe["credentials_present"] = any(account.get(key) for key in SECRET_KEYS)
-    return safe
-
-
-def _load_json_file(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8")) or {}
-    except (OSError, json.JSONDecodeError):
-        return {"_error": "connection_store_unreadable"}
-
-
 class HostedConnectionService:
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or Settings()
+        self._store = HostedConnectionStore(self._settings.connection_store_file)
 
     def _public_base_url(self) -> str:
         return self._settings.public_base_or_local_mcp_url
@@ -104,18 +74,29 @@ class HostedConnectionService:
         }
 
     def connections(self) -> dict[str, Any]:
-        store = _load_json_file(self._settings.connection_store_file)
-        stored_connections = store.get("connections", {}) if isinstance(store.get("connections", {}), dict) else {}
-        platforms = [self._platform_status(platform, stored_connections.get(platform.provider, {})) for platform in PLATFORMS]
+        platforms = [self._platform_status(platform) for platform in PLATFORMS]
         return {
             "mode": "hosted_oauth_beta",
             "mcp": self.mcp_connection_info(),
-            "connection_store": {
-                "configured": self._settings.connection_store_file.exists(),
-                "path": self._settings.connection_store_path,
-                "readable": "_error" not in store,
-            },
+            "connection_store": self._store.status() | {"path": self._settings.connection_store_path},
             "platforms": platforms,
+        }
+
+    def import_local_provider(self, provider: str) -> dict[str, Any]:
+        if provider not in {platform.provider for platform in PLATFORMS}:
+            return {"provider": provider, "status": "unsupported_provider"}
+        if not self._settings.connections_config_path.exists():
+            return {"provider": provider, "status": "no_local_config"}
+        provider_config = load_provider_from_connections(self._settings.connections_config_path, provider)
+        accounts = provider_config.get("accounts", [])
+        if not accounts:
+            return {"provider": provider, "status": "no_local_accounts"}
+        saved = self._store.save_provider_config(provider, provider_config, source="local_import")
+        return {
+            "provider": provider,
+            "status": "imported",
+            "source": "local_connections_config",
+            "accounts": saved["accounts"],
         }
 
     def oauth_start_preview(self, provider: str) -> dict[str, Any]:
@@ -146,19 +127,21 @@ class HostedConnectionService:
             "mcp": info,
         }
 
-    def _platform_status(self, platform: PlatformDescriptor, stored: Any) -> dict[str, Any]:
+    def _platform_status(self, platform: PlatformDescriptor) -> dict[str, Any]:
+        hosted_config = self._store.provider_config(platform.provider)
+        hosted_accounts = hosted_config.get("accounts", [])
         provider_config = load_provider_from_connections(self._settings.connections_config_path, platform.provider)
         accounts = provider_config.get("accounts", [])
-        safe_accounts = [_safe_account(account) for account in accounts if isinstance(account, dict)]
-        stored_accounts = stored.get("accounts", []) if isinstance(stored, dict) else []
-        has_oauth_connection = bool(stored_accounts)
-        has_dev_config = bool(safe_accounts)
+        safe_accounts = [safe_account_summary(account) for account in hosted_accounts if isinstance(account, dict)]
+        local_safe_accounts = [safe_account_summary(account) for account in accounts if isinstance(account, dict)]
+        has_oauth_connection = bool(hosted_accounts)
         if has_oauth_connection:
             status = "connected"
-            source = "oauth_store"
-        elif has_dev_config:
+            source = "hosted_connection_store"
+        elif local_safe_accounts and self._settings.connections_fallback_to_local:
             status = "development_configured"
-            source = "ads_config"
+            source = "local_connections_config"
+            safe_accounts = local_safe_accounts
         elif platform.oauth_target:
             status = "ready_for_oauth"
             source = "none"

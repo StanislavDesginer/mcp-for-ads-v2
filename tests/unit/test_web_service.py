@@ -1,4 +1,6 @@
 from ad_mcp.web.service import MetaDashboardService
+from ad_mcp.core.connection_store import HostedConnectionStore
+from ad_mcp.settings import Settings
 
 
 def test_date_window_defaults_to_requested_lookback() -> None:
@@ -18,6 +20,37 @@ def test_count_statuses_falls_back_to_status_field() -> None:
         ]
     )
     assert result == {"ACTIVE": 1, "PAUSED": 1, "UNKNOWN": 1}
+
+
+def test_config_diagnostics_uses_hosted_connection_store(tmp_path) -> None:
+    settings = Settings(
+        project_root=tmp_path,
+        connection_store_path="tokens/connections.json",
+        connections_fallback_to_local=False,
+    )
+    HostedConnectionStore(settings.connection_store_file).save_provider_config(
+        "meta_ads",
+        {
+            "provider": "meta_ads",
+            "accounts": [
+                {
+                    "name": "Hosted Meta",
+                    "account_id": "hosted_123",
+                    "status": "connected",
+                    "app_id": "app-id",
+                    "app_secret": "app-secret",
+                    "access_token": "access-token",
+                }
+            ],
+        },
+    )
+    service = MetaDashboardService(settings)
+
+    payload = service.config_diagnostics()
+
+    assert payload["connections"]["runtime_source"] == "hosted_connection_store"
+    assert payload["runtime"]["accounts_total"] == 1
+    assert payload["runtime"]["accounts"][0]["account_id"] == "hosted_123"
 
 
 class _FakeMetaProvider:

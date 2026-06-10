@@ -7,7 +7,8 @@ from mcp.server.fastmcp import FastMCP
 from ad_mcp.core.auth_manager import AuthManager
 from ad_mcp.core.audit_logger import AuditLogger
 from ad_mcp.core.capability_registry import CapabilityRegistry
-from ad_mcp.core.config_loader import load_provider_from_connections, load_safety_policy
+from ad_mcp.core.config_loader import load_safety_policy
+from ad_mcp.core.connection_store import load_runtime_provider_configs
 from ad_mcp.core.policy import PolicyManager
 from ad_mcp.core.preview_manager import PreviewManager
 from ad_mcp.providers.google_ads.client import GoogleAdsProvider
@@ -64,12 +65,7 @@ def create_server(settings: Settings | None = None, *, hosted_http: bool = False
     audit_logger = AuditLogger(settings.audit_log_file)
     policy_manager = PolicyManager(load_safety_policy(settings.policy_config_path))
 
-    provider_configs = {
-        "google_ads": load_provider_from_connections(settings.connections_config_path, "google_ads"),
-        "meta_ads": load_provider_from_connections(settings.connections_config_path, "meta_ads"),
-        "tiktok_ads": load_provider_from_connections(settings.connections_config_path, "tiktok_ads"),
-        "yandex_direct": load_provider_from_connections(settings.connections_config_path, "yandex_direct"),
-    }
+    provider_configs, provider_sources = load_runtime_provider_configs(settings)
     providers = {
         "google_ads": GoogleAdsProvider(config=provider_configs["google_ads"]),
         "meta_ads": MetaAdsProvider(config=provider_configs["meta_ads"]),
@@ -125,6 +121,12 @@ def create_server(settings: Settings | None = None, *, hosted_http: bool = False
                 "connections_config": {
                     "file": settings.connections_config_path.name,
                     "exists": settings.connections_config_path.exists(),
+                },
+                "connection_store": {
+                    "file": settings.connection_store_file.name,
+                    "exists": settings.connection_store_file.exists(),
+                    "fallback_to_local": settings.connections_fallback_to_local,
+                    "provider_sources": provider_sources,
                 },
                 "policy_config": {
                     "file": settings.policy_config_path.name,

@@ -263,6 +263,8 @@ class AdsWebHandler(BaseHTTPRequestHandler):
             if not self._ensure_api_authorized(route):
                 return
             payload = self._json_body()
+            if route == "/api/hosted/connections/import-local":
+                return self._send_json(self.hosted.import_local_provider(str(payload["provider"])))
             if route == "/api/meta/preview/clone-campaign":
                 return self._send_json(
                     self.service.preview_clone_campaign(
@@ -305,7 +307,7 @@ def main() -> None:
     port = settings.web_port
     AdsWebHandler.settings = settings
     AdsWebHandler.hosted = HostedConnectionService(settings)
-    AdsWebHandler.service = MetaDashboardService()
+    AdsWebHandler.service = MetaDashboardService(settings)
     if _api_token_required(settings) and not settings.web_api_token.strip():
         LOGGER.warning("AD_MCP_WEB_API_TOKEN is required for production web API access but is not configured.")
     server = ThreadingHTTPServer((host, port), AdsWebHandler)

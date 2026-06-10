@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     meta_oauth_redirect_path: str = "/oauth/meta/callback"
     google_oauth_redirect_path: str = "/oauth/google/callback"
     connection_store_path: str = "tokens/connections.json"
+    connections_fallback_to_local: bool = True
     clickhouse_enabled: bool = False
     clickhouse_host: str = "127.0.0.1"
     clickhouse_port: int = 8123
