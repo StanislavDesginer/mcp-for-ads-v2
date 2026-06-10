@@ -1,151 +1,126 @@
-# AdForge MCP beta onboarding
+# AdForge MCP hosted beta onboarding
 
-Эта инструкция нужна, чтобы beta-тестер мог локально поднять MCP, подключить его к Codex/Claude/GPT-compatible клиенту, проверить диагностику и работать только через безопасные preview-сценарии.
+Эта инструкция описывает целевую beta-модель. Пользователь не скачивает GitHub-репозиторий и не запускает MCP локально. AdForge MCP развернут на нашем VPS/WPS-сервере, а пользователь подключает его как внешний MCP/connector-сервис.
 
-## 1. Установка
+## 1. Что получает пользователь
 
-```powershell
-git clone git@github.com:mcpforge-dev/AdForge-MCP.git
-cd AdForge-MCP
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[dev,google,meta]"
-```
+- URL сайта AdForge MCP.
+- URL MCP endpoint.
+- Доступ к dashboard.
+- Возможность подключить рекламные кабинеты через OAuth.
+- Инструкцию для Codex, Claude и других клиентов.
 
-Если репозиторий уже скачан:
+## 2. Подключение рекламного кабинета
 
-```powershell
-cd C:\MCP\AdForge-MCP
-git pull origin main
-.\.venv\Scripts\python.exe -m pip install -e ".[dev,google,meta]"
-```
+Пользователь заходит на сайт AdForge MCP и открывает раздел `Connections`.
 
-## 2. Локальные файлы
+Для Meta Ads:
 
-Создать в корне проекта два локальных файла:
+1. Нажать `Connect Meta Ads`.
+2. Пройти Meta OAuth.
+3. Разрешить нужные permissions.
+4. Увидеть список доступных рекламных аккаунтов.
+5. Выбрать аккаунты для работы.
+6. Сохранить подключение.
+7. Проверить статус и диагностику.
 
-```powershell
-Copy-Item .env.example .env
-Copy-Item ads_config.example.yaml ads_config.yaml
-```
+Для Google Ads:
 
-Эти файлы не коммитятся. Они уже добавлены в `.gitignore`.
+1. Нажать `Connect Google Ads`.
+2. Пройти Google OAuth.
+3. Выбрать доступные customer accounts.
+4. Сохранить подключение.
+5. Проверить статус и диагностику.
 
-Проверка:
+Вручную передавать access tokens, client secrets, `.env` или `ads_config.yaml` пользователь не должен.
 
-```powershell
-git check-ignore -v .env ads_config.yaml
-git status --short
-```
+## 3. Что видно на сайте
 
-## 3. Что нужно для Meta Ads
+В dashboard должны быть:
 
-В `.env`:
+- список подключенных платформ;
+- список подключенных рекламных аккаунтов;
+- статус подключения;
+- базовая диагностика;
+- кнопка reconnect;
+- кнопка disconnect;
+- список доступных connectors.
 
-- `META_ACCESS_TOKEN`
-- `META_APP_SECRET`
-- при нескольких кабинетах отдельные переменные вида `META_VARIKOZA_ACCESS_TOKEN`, `META_VARIKOZA_APP_SECRET`
+Ориентир по UX: простой экран Connections, где видно Meta Ads, Google Ads, статус `Active`, подключенные аккаунты и кнопки управления.
 
-В `ads_config.yaml`:
+## 4. Подключение в Codex
 
-- `provider: meta_ads`
-- `name`
-- `account_id`
-- `app_id`
-- `app_secret`, лучше через `${META_APP_SECRET}`
-- `access_token`, лучше через `${META_ACCESS_TOKEN}`
-- `api_version`, например `v20.0`
-- нужные action/video metrics
+В Codex пользователь открывает настройки MCP, нажимает `Add server` и добавляет наш hosted server.
 
-Meta `account_id` можно указывать с `act_` или без него, если конкретный tool это поддерживает. В config лучше хранить стабильный ID кабинета.
+Пример логики заполнения:
 
-## 4. Что нужно для Google Ads
+- Name: `AdForge MCP`
+- Transport: `Streamable HTTP` или другой доступный HTTP/MCP режим
+- URL: `https://<our-domain>/mcp`
+- Auth: token/header, если включена авторизация
 
-В `ads_config.yaml` для `google_ads`:
+Точный формат зависит от версии Codex, поэтому в beta-документации нужно держать отдельный скриншот и актуальную инструкцию.
 
-- `customer_id`
-- `login_customer_id`, если используется manager account
-- `developer_token`
-- `oauth_client_id`
-- `oauth_client_secret`
-- `refresh_token`
+## 5. Подключение в Claude
 
-Секреты лучше держать в `.env` и подставлять в YAML через `${GOOGLE_ADS_REFRESH_TOKEN}` и аналогичные переменные.
+В Claude пользователь открывает:
 
-## 5. MCP config для клиента
+`Settings -> Connectors -> Customize -> +`
 
-Минимальный пример лежит в:
+Дальше добавляет custom connector:
 
-- `docs/beta/mcp.example.json`
+- Name: `AdForge MCP`
+- URL: `https://<our-domain>/mcp`
 
-Для локального beta-запуска на этом ноутбуке команда выглядит так:
+После добавления Claude показывает permissions/tools. Пользователь может включить или отключить нужные разрешения.
 
-```json
-{
-  "mcpServers": {
-    "adforge-mcp": {
-      "command": "C:\\MCP\\AdForge-MCP\\.venv\\Scripts\\python.exe",
-      "args": ["-m", "ad_mcp.server"],
-      "cwd": "C:\\MCP\\AdForge-MCP"
-    }
-  }
-}
-```
+## 6. Подключение в Gemini
 
-В Codex, Claude Desktop или другом GPT-compatible MCP-клиенте нужно добавить сервер `adforge-mcp` с этой командой. Формат поля может отличаться у клиента, но смысл один: запускать `python -m ad_mcp.server` из корня проекта.
+Gemini может использовать другой формат подключения. Для него нужно отдельно проверить актуальный connector flow и подготовить отдельную инструкцию.
 
-## 6. Проверка MCP
+До проверки Gemini фиксируем как адаптацию после Codex и Claude.
 
-Быстрая проверка без live write:
+## 7. Что пользователь спрашивает у ИИ
 
-```powershell
-.\.venv\Scripts\python.exe scripts\smoke_mcp_beta.py
-```
+После подключения MCP пользователь может писать обычные запросы:
 
-Что проверяет smoke:
+- `Выведи список рекламных аккаунтов.`
+- `Покажи кампании по Meta Ads.`
+- `Покажи бюджеты кампаний.`
+- `Покажи статусы кампаний.`
+- `Покажи базовые метрики за последние 7 дней.`
+- `Покажи проблемные кампании.`
 
-- server imports
-- tools register
-- `get_beta_diagnostics` доступен
-- discovery tools отвечают
-- preview mutation возвращает `status=preview`
-- live write не выполняется
+ИИ обращается к hosted AdForge MCP, а MCP работает с аккаунтами, которые пользователь подключил через сайт.
 
-Если нет настроенного Meta account в `ads_config.yaml`, можно явно пропустить preview:
+## 8. Безопасные действия
 
-```powershell
-.\.venv\Scripts\python.exe scripts\smoke_mcp_beta.py --skip-preview
-```
+В beta-ready MVP реальные изменения в рекламных кабинетах не выполняются.
 
-## 7. Диагностика внутри MCP-клиента
+Если пользователь просит изменить бюджет, выключить кампанию, поменять статус или выполнить другое опасное действие, MCP возвращает preview:
 
-После подключения попросить клиента вызвать:
+- какое действие будет выполнено;
+- к какому аккаунту относится действие;
+- какой объект будет изменен;
+- что было до изменения;
+- что будет после изменения;
+- какие есть риски.
 
-- `list_providers`
-- `get_beta_diagnostics`
-- `get_provider_capabilities` для `meta_ads`
-- `list_accounts` для `meta_ads`
-- `describe_auth_strategy` для `meta_ads`
+Фактический write в beta отключен или недоступен без отдельного confirm-механизма.
 
-Для Google Ads аналогично заменить provider на `google_ads`.
+## 9. Beta-ready MVP definition
 
-## 8. Безопасная работа
+К концу июня MVP считается готовым, если:
 
-В beta write-сценарии должны идти через preview:
+- AdForge MCP развернут на нашем VPS/WPS;
+- есть сайт / dashboard;
+- Meta Ads подключается через OAuth;
+- желательно Google Ads подключается через OAuth;
+- на сайте видны подключенные аккаунты;
+- диагностика подключения работает;
+- Codex и Claude могут подключить hosted MCP;
+- через MCP можно получить аккаунты, кампании, статусы, бюджеты и базовые метрики;
+- опасные действия работают только через preview;
+- документация объясняет, что уже работает и что пока в планах.
 
-- `clone_campaign_preview`
-- `update_campaign_budget_preview`
-- `pause_entities_preview`
-- другие tools с суффиксом `_preview`
-
-Не использовать commit/write-confirm действия до отдельной проверки production-политики и доступа. Текущий безопасный режим: `simulated_no_write`.
-
-## 9. Локальные проверки перед передачей beta
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe -m compileall src
-node --check src/ad_mcp/web/static/app.js
-.\.venv\Scripts\python.exe scripts\smoke_mcp_beta.py
-```
-
-Если системный `node` недоступен, используйте любой установленный Node.js 18+ или bundled Node из Codex runtime.
+Главный принцип: beta MVP - это hosted MCP-сервис с OAuth-подключением рекламных кабинетов, а не локальный GitHub-проект для разработчиков.

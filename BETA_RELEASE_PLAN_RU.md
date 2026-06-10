@@ -1,99 +1,134 @@
 # Beta release plan
 
-Цель до конца июня: довести `AdForge MCP` до бета-состояния, где внешний человек может поднять MCP, подключить рекламный кабинет по инструкции, проверить диагностику и безопасно работать через GPT, Claude, Codex или другой MCP-клиент.
+Цель до конца июня: довести `AdForge MCP` до beta-ready MVP как hosted MCP-сервис. Пользователь не должен скачивать проект с GitHub и запускать сервер локально. Проект должен быть развернут на нашем VPS/WPS-сервере, а пользователь подключает его в Codex, Claude или другом MCP/connector-клиенте как внешний сервер.
 
-## Принципы беты
+## Главная модель MVP
 
-- Meta и Google идут в первую бету.
-- Yandex Direct и TikTok Ads остаются позже, без блокировки релиза.
-- Все write-действия остаются в режиме `preview -> confirm`.
-- Секреты не хранятся в Git.
-- Любой новый кабинет подключается через понятный onboarding: `.env`, `ads_config.yaml`, диагностика, smoke-check.
-- MCP-native skills важнее отдельного чат-слоя в web UI.
+- AdForge MCP работает на нашем сервере.
+- Пользователь подключает внешний MCP/connector в своем AI-клиенте.
+- Рекламные кабинеты подключаются через наш сайт и OAuth.
+- Meta Ads идет в первую beta.
+- Google Ads желательно успеть в первую beta.
+- TikTok Ads и Yandex Direct остаются позже, без блокировки MVP.
+- Все опасные действия работают только через preview, без реальных изменений в рекламных кабинетах.
+
+## Пользовательский сценарий
+
+1. Пользователь заходит на сайт AdForge MCP.
+2. Нажимает `Connect Meta Ads`.
+3. Проходит Meta OAuth.
+4. Видит список доступных рекламных аккаунтов.
+5. Выбирает нужные аккаунты.
+6. Проверяет диагностику подключения.
+7. Подключает AdForge MCP в Codex, Claude или другом MCP-клиенте.
+8. Пишет запросы в ИИ: список аккаунтов, кампании, бюджеты, статусы, базовые метрики.
+9. Любое действие на изменение показывается только как preview.
 
 ## Этап 0: security gate
 
 Срок: 9-11 июня.
 
 - Убрать `.env` и `ads_config.yaml` из Git tracking.
-- Перевыпустить засвеченные токены после стабилизации конфига.
-- Закрыть web `/api/*` простым beta-auth или сетевым ограничением.
+- Не хранить токены и OAuth secrets в Git.
+- Закрыть web `/api/*` beta-auth или другим контролем доступа.
 - Не отдавать raw exceptions наружу.
-- Проверить, что diagnostics не раскрывают секреты и лишние пути.
+- Не раскрывать секреты через diagnostics.
 
 Definition of done:
-- `git status` не показывает секретные файлы как tracked changes.
-- Web API не доступен без beta credentials или ограниченного контура.
-- Ошибки в UI человекочитаемые и безопасные.
+- Секретные файлы не отслеживаются Git.
+- Web API закрыт без beta credentials.
+- Ошибки безопасные и человекочитаемые.
 
-## Этап 1: MCP beta packaging
+## Этап 1: hosted MCP foundation
 
 Срок: 12-16 июня.
 
-- Проверить MCP server entrypoint для Codex/Claude/GPT-compatible клиентов.
-- Подготовить минимальный `mcp.json` пример подключения.
-- Описать поддерживаемые tools/skills и их safe-mode поведение.
-- Добавить smoke command, который проверяет загрузку server/tools без живого write.
+- Подготовить серверный запуск AdForge MCP на VPS/WPS.
+- Проверить MCP endpoint для внешних клиентов.
+- Описать подключение в Codex через MCP settings.
+- Описать подключение в Claude через Connectors / custom connector.
+- Отдельно зафиксировать, что Gemini требует отдельной адаптации.
+- Подготовить hosted MCP config example с URL, а не локальной командой запуска.
 
 Definition of done:
-- Новый пользователь может подключить MCP локально по инструкции.
-- Есть проверка `server starts -> tools listed -> diagnostics ok`.
+- Есть рабочий hosted MCP endpoint.
+- Есть инструкция подключения внешнего MCP/connector.
+- Есть smoke-check `server starts -> tools listed -> diagnostics ok`.
 
-## Этап 2: account onboarding
+## Этап 2: website account onboarding
 
 Срок: 17-20 июня.
 
-- Сделать пошаговый `CONNECTING_BETA_RU.md` для Meta и Google Ads.
-- Добавить template-конфиг без секретов.
-- Сделать понятную диагностику: missing env, invalid account, expired token, permission denied.
-- Для Google Ads добавить первый live-read smoke-test.
+- Сделать базовый сайт / dashboard.
+- Сделать страницу `Connections`.
+- Добавить кнопку `Connect Meta Ads`.
+- Реализовать Meta OAuth.
+- Получить список доступных рекламных аккаунтов.
+- Дать пользователю выбрать аккаунты.
+- Сохранить подключение на сервере.
+- Показать статус подключения и диагностику.
 
 Definition of done:
-- Человек без участия разработчика понимает, какие данные нужны и куда их положить.
-- Ошибка подключения объясняет, что именно исправить.
+- Пользователь подключает Meta Ads через сайт, без ручного `.env` и `ads_config.yaml`.
+- На сайте видны подключенные Meta Ads аккаунты.
+- Диагностика объясняет missing permission, expired token и invalid account.
 
-## Этап 3: reliability test pack
+## Этап 3: Google Ads onboarding
+
+Срок: 20-23 июня.
+
+- Добавить кнопку `Connect Google Ads`.
+- Реализовать Google OAuth.
+- Получить доступные customer accounts.
+- Дать выбрать нужные аккаунты.
+- Сохранить подключение.
+- Добавить базовую диагностику Google Ads.
+
+Definition of done:
+- Если успеваем, Google Ads подключается так же через сайт.
+- Если не успеваем полностью, фиксируем как частично готовый beta scope.
+
+## Этап 4: MCP read tools for beta
 
 Срок: 21-24 июня.
 
-- Зафиксировать unit/integration smoke matrix.
-- Добавить проверки web UI: health, workspace, diagnostics, preview forms.
-- Добавить MCP checks: tool registration, read report, skill preset, preview mutation.
-- Проверить graceful degradation при rate limit и permission errors.
+- Через MCP вернуть список подключенных аккаунтов.
+- Вернуть список кампаний.
+- Вернуть статусы кампаний.
+- Вернуть бюджеты.
+- Вернуть базовые метрики за последние 7 дней.
+- Проверить graceful degradation при permission errors и rate limits.
 
 Definition of done:
-- Есть одна команда или короткая последовательность команд для beta regression run.
-- Meta rate limits не валят весь workspace.
+- В Codex/Claude можно спросить: аккаунты, кампании, бюджеты, статусы, базовые метрики.
+- Ответы идут из подключенных через сайт рекламных кабинетов.
 
-## Этап 4: VPS beta deploy
+## Этап 5: preview-only actions
 
-Срок: 25-27 июня.
+Срок: 24-26 июня.
 
-- Деплой на существующий VPS.
-- Проверка systemd service, nginx, healthz, logs.
-- Проверка live Meta кабинетов.
-- Проверка Google Ads кабинета.
-- Проверка beta-auth/ограничений.
+- Любое изменение бюджета, статуса или кампании возвращает preview.
+- Preview показывает аккаунт, объект, старое значение, новое значение и риск.
+- Реальные write-действия в beta отключены или недоступны без отдельного confirm-механизма.
 
 Definition of done:
-- Сервер работает после restart.
-- Smoke-test проходит с VPS.
-- В логах нет секретов.
+- Опасные действия не применяются в рекламном кабинете.
+- Пользователь видит понятный план изменения перед любым write.
 
-## Этап 5: beta handoff
+## Этап 6: beta handoff
 
-Срок: 28-30 июня.
+Срок: 26-30 июня.
 
-- Финальная инструкция для пользователя.
-- Чеклист подключения MCP-клиента.
-- Чеклист подключения рекламного кабинета.
-- Known limitations: Yandex/TikTok позже, write только preview.
+- Финальная инструкция подключения hosted MCP.
+- Инструкция для Codex.
+- Инструкция для Claude Connectors.
+- Заметка по Gemini: требуется отдельная адаптация.
+- Known limitations: TikTok/Yandex позже, write только preview.
 - GitHub release/tag beta.
 
 Definition of done:
-- Можно дать человеку ссылку на репозиторий и инструкцию.
-- Он сможет поднять MCP, подключить кабинет, проверить диагностику и выполнить безопасные preview-сценарии.
-
-## Первый рабочий фокус
-
-Начинаем с security gate, потому что без него любой следующий deploy рискует случайно утащить реальные токены в Git или наружу через diagnostics.
+- Можно дать пользователю URL сайта и MCP endpoint.
+- Он может подключить Meta Ads через OAuth.
+- Он может подключить AdForge MCP в AI-клиенте.
+- Он может получать данные через MCP.
+- Он понимает, какие функции работают, а какие пока в планах.
