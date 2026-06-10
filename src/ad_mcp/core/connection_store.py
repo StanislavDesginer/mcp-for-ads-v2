@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 from ad_mcp.core.config_loader import load_provider_from_connections
 
@@ -56,6 +57,10 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _expires_iso(ttl_seconds: int) -> str:
+    return (datetime.now(timezone.utc) + timedelta(seconds=max(1, ttl_seconds))).isoformat()
 
 
 def _normalize_account(provider: str, account: dict[str, Any]) -> dict[str, Any]:
@@ -147,6 +152,98 @@ class HostedConnectionStore:
         data["version"] = int(data.get("version") or 1)
         self._write(data)
         return self.safe_provider_status(provider)
+
+    def save_oauth_pending(
+        self,
+        provider: str,
+        accounts: list[dict[str, Any]],
+        credentials: dict[str, Any],
+        ttl_seconds: int = 900,
+        source: str = "dashboard_oauth",
+    ) -> dict[str, Any]:
+        if provider not in PROVIDER_NAMES:
+            raise ValueError(f"Unsupported provider: {provider}")
+        data = self.read()
+        if "_error" in data:
+            data = {}
+        pending_root = data.setdefault("oauth_pending", {})
+        if not isinstance(pending_root, dict):
+            pending_root = {}
+            data["oauth_pending"] = pending_root
+        provider_pending = pending_root.setdefault(provider, {})
+        if not isinstance(provider_pending, dict):
+            provider_pending = {}
+            pending_root[provider] = provider_pending
+        pending_id = uuid4().hex
+        stored_accounts = [_stored_account(provider, account) for account in accounts if isinstance(account, dict)]
+        provider_pending[pending_id] = {
+            "provider": provider,
+            "source": source,
+            "created_at": _now_iso(),
+            "expires_at": _expires_iso(ttl_seconds),
+            "credentials": dict(credentials),
+            "accounts": stored_accounts,
+        }
+        data["version"] = int(data.get("version") or 1)
+        self._write(data)
+        return self.pending_selection(provider, pending_id)
+
+    def pending_selection(self, provider: str, pending_id: str) -> dict[str, Any]:
+        pending = self._pending(provider, pending_id)
+        accounts = pending.get("accounts", [])
+        return {
+            "provider": provider,
+            "pending_id": pending_id,
+            "status": "pending_account_selection",
+            "expires_at": pending.get("expires_at"),
+            "accounts": [safe_account_summary(_runtime_account(provider, account)) for account in accounts if isinstance(account, dict)],
+        }
+
+    def select_pending_accounts(self, provider: str, pending_id: str, account_ids: list[str]) -> dict[str, Any]:
+        selected_ids = {str(account_id).strip() for account_id in account_ids if str(account_id).strip()}
+        if not selected_ids:
+            raise ValueError("At least one account_id must be selected.")
+        pending = self._pending(provider, pending_id)
+        credentials = pending.get("credentials", {}) if isinstance(pending.get("credentials"), dict) else {}
+        selected_accounts: list[dict[str, Any]] = []
+        for stored_account in pending.get("accounts", []):
+            if not isinstance(stored_account, dict):
+                continue
+            runtime_account = _runtime_account(provider, stored_account)
+            account_id = str(runtime_account.get("account_id", "") or "").strip()
+            if account_id in selected_ids:
+                account = dict(runtime_account)
+                account.update(credentials)
+                account["status"] = account.get("status") or "connected"
+                selected_accounts.append(account)
+        if not selected_accounts:
+            raise ValueError("Selected account_ids were not found in pending OAuth discovery.")
+        status = self.save_provider_config(provider, {"provider": provider, "accounts": selected_accounts}, source="dashboard_oauth")
+        self._remove_pending(provider, pending_id)
+        return {"provider": provider, "status": "connected", "accounts": status["accounts"]}
+
+    def _pending(self, provider: str, pending_id: str) -> dict[str, Any]:
+        data = self.read()
+        pending = (
+            data.get("oauth_pending", {})
+            if isinstance(data.get("oauth_pending", {}), dict)
+            else {}
+        ).get(provider, {})
+        record = pending.get(pending_id) if isinstance(pending, dict) else None
+        if not isinstance(record, dict):
+            raise ValueError("OAuth pending selection was not found.")
+        expires_at = record.get("expires_at")
+        if expires_at and datetime.now(timezone.utc) > datetime.fromisoformat(str(expires_at)):
+            self._remove_pending(provider, pending_id)
+            raise ValueError("OAuth pending selection expired.")
+        return record
+
+    def _remove_pending(self, provider: str, pending_id: str) -> None:
+        data = self.read()
+        pending_root = data.get("oauth_pending", {}) if isinstance(data.get("oauth_pending", {}), dict) else {}
+        provider_pending = pending_root.get(provider, {}) if isinstance(pending_root.get(provider, {}), dict) else {}
+        provider_pending.pop(pending_id, None)
+        self._write(data)
 
     def _write(self, data: dict[str, Any]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

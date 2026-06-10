@@ -6,6 +6,7 @@ from typing import Any
 from ad_mcp.core.config_loader import load_provider_from_connections
 from ad_mcp.core.connection_store import HostedConnectionStore, safe_account_summary
 from ad_mcp.settings import Settings
+from ad_mcp.web.meta_oauth import MetaOAuthService
 
 
 @dataclass(frozen=True)
@@ -47,9 +48,10 @@ class HostedConnectionService:
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or Settings()
         self._store = HostedConnectionStore(self._settings.connection_store_file)
+        self._meta_oauth = MetaOAuthService(self._settings)
 
     def _public_base_url(self) -> str:
-        return self._settings.public_base_or_local_mcp_url
+        return self._settings.public_base_or_local_web_url
 
     def mcp_connection_info(self) -> dict[str, Any]:
         endpoint_path = self._settings.mcp_route_path
@@ -114,10 +116,24 @@ class HostedConnectionService:
         return {
             "provider": platform.provider,
             "label": platform.label,
-            "status": "oauth_not_configured",
+            "status": "oauth_ready" if self._meta_oauth.configured() and provider == "meta_ads" else "oauth_not_configured",
             "redirect_url": _join_url(self._public_base_url(), self._oauth_redirect_path(platform.provider)),
-            "message": "OAuth app credentials and callback handling are the next implementation step.",
+            "message": "OAuth can start when app credentials are configured." if provider == "meta_ads" else "OAuth app credentials and callback handling are planned next.",
         }
+
+    def meta_oauth_redirect_url(self) -> str:
+        return self._meta_oauth.authorization_url()
+
+    def meta_oauth_callback(self, query: dict[str, str]) -> dict[str, Any]:
+        return self._meta_oauth.handle_callback(query)
+
+    def meta_oauth_pending(self, pending_id: str) -> dict[str, Any]:
+        return self._meta_oauth.pending_selection(pending_id)
+
+    def meta_oauth_select(self, payload: dict[str, Any]) -> dict[str, Any]:
+        pending_id = str(payload["pending_id"])
+        account_ids = payload.get("account_ids") or []
+        return self._meta_oauth.select_accounts(pending_id, [str(item) for item in account_ids])
 
     def mcp_transport_placeholder(self) -> dict[str, Any]:
         info = self.mcp_connection_info()

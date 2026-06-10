@@ -74,6 +74,13 @@ class AdsWebHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _redirect(self, location: str) -> None:
+        self.send_response(HTTPStatus.FOUND)
+        self._set_default_headers()
+        self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def _error(self, message: str, status: HTTPStatus = HTTPStatus.BAD_REQUEST, code: str = "bad_request") -> None:
         self._send_json({"error": message, "code": code}, status)
 
@@ -149,6 +156,8 @@ class AdsWebHandler(BaseHTTPRequestHandler):
                 return self._send_file(STATIC_ROOT / "app.css", "text/css; charset=utf-8")
             if route == "/assets/app.js":
                 return self._send_file(STATIC_ROOT / "app.js", "application/javascript; charset=utf-8")
+            if route == self.settings.meta_oauth_redirect_path:
+                return self._send_json(self.hosted.meta_oauth_callback(self._query()))
 
             if not self._ensure_api_authorized(route):
                 return
@@ -165,7 +174,9 @@ class AdsWebHandler(BaseHTTPRequestHandler):
             if route == "/api/hosted/connections":
                 return self._send_json(self.hosted.connections())
             if route == "/api/hosted/oauth/meta/start":
-                return self._send_json(self.hosted.oauth_start_preview("meta_ads"), HTTPStatus.NOT_IMPLEMENTED)
+                return self._redirect(self.hosted.meta_oauth_redirect_url())
+            if route == "/api/hosted/oauth/meta/pending":
+                return self._send_json(self.hosted.meta_oauth_pending(str(query["pending_id"])))
             if route == "/api/hosted/oauth/google/start":
                 return self._send_json(self.hosted.oauth_start_preview("google_ads"), HTTPStatus.NOT_IMPLEMENTED)
 
@@ -265,6 +276,8 @@ class AdsWebHandler(BaseHTTPRequestHandler):
             payload = self._json_body()
             if route == "/api/hosted/connections/import-local":
                 return self._send_json(self.hosted.import_local_provider(str(payload["provider"])))
+            if route == "/api/hosted/oauth/meta/select":
+                return self._send_json(self.hosted.meta_oauth_select(payload))
             if route == "/api/meta/preview/clone-campaign":
                 return self._send_json(
                     self.service.preview_clone_campaign(

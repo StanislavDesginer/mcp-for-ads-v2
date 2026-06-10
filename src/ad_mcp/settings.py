@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     mcp_http_port: int = 8766
     meta_oauth_redirect_path: str = "/oauth/meta/callback"
     google_oauth_redirect_path: str = "/oauth/google/callback"
+    meta_oauth_app_id: str = ""
+    meta_oauth_app_secret: str = ""
+    meta_oauth_api_version: str = "v20.0"
+    meta_oauth_scopes: str = "ads_read,business_management"
+    meta_oauth_state_ttl_seconds: int = 900
     connection_store_path: str = "tokens/connections.json"
     connections_fallback_to_local: bool = True
     clickhouse_enabled: bool = False
@@ -78,6 +83,16 @@ class Settings(BaseSettings):
         if host in {"0.0.0.0", "::"}:
             host = "127.0.0.1"
         return f"http://{host}:{self.mcp_http_port}"
+
+    @property
+    def public_base_or_local_web_url(self) -> str:
+        configured = self.public_base_url.strip()
+        if configured:
+            return configured.rstrip("/")
+        host = self.web_host
+        if host in {"0.0.0.0", "::"}:
+            host = "127.0.0.1"
+        return f"http://{host}:{self.web_port}"
 
     @property
     def public_mcp_url(self) -> str:
