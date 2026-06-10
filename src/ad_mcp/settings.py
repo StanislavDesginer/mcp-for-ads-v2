@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     web_port: int = 8765
     web_api_token: str = ""
     web_max_body_bytes: int = 65536
+    public_base_url: str = ""
+    mcp_endpoint_path: str = "/mcp"
+    meta_oauth_redirect_path: str = "/oauth/meta/callback"
+    google_oauth_redirect_path: str = "/oauth/google/callback"
+    connection_store_path: str = "tokens/connections.json"
     clickhouse_enabled: bool = False
     clickhouse_host: str = "127.0.0.1"
     clickhouse_port: int = 8123
@@ -45,3 +50,14 @@ class Settings(BaseSettings):
     @property
     def policy_config_path(self) -> Path:
         return self.project_root / self.policy_config
+
+    @property
+    def connection_store_file(self) -> Path:
+        return self.project_root / self.connection_store_path
+
+    @property
+    def mcp_route_path(self) -> str:
+        clean = (self.mcp_endpoint_path or "/mcp").strip()
+        if not clean.startswith("/"):
+            clean = f"/{clean}"
+        return clean

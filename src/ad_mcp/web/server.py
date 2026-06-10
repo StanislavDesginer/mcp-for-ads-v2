@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 
 from ad_mcp.core.errors import AdMCPError
 from ad_mcp.settings import Settings
+from ad_mcp.web.hosted import HostedConnectionService
 from ad_mcp.web.service import MetaDashboardService
 
 
@@ -44,6 +45,7 @@ def _request_token_is_valid(headers, settings: Settings) -> bool:
 
 class AdsWebHandler(BaseHTTPRequestHandler):
     settings = Settings()
+    hosted = HostedConnectionService()
     service = MetaDashboardService()
 
     def _set_default_headers(self) -> None:
@@ -76,7 +78,8 @@ class AdsWebHandler(BaseHTTPRequestHandler):
         self._send_json({"error": message, "code": code}, status)
 
     def _ensure_api_authorized(self, route: str) -> bool:
-        if not route.startswith("/api/") or not _api_token_required(self.settings):
+        protected_route = route.startswith("/api/") or route == self.settings.mcp_route_path
+        if not protected_route or not _api_token_required(self.settings):
             return True
         if not self.settings.web_api_token.strip():
             self._error(
@@ -150,9 +153,21 @@ class AdsWebHandler(BaseHTTPRequestHandler):
             if not self._ensure_api_authorized(route):
                 return
 
+            if route == self.settings.mcp_route_path:
+                return self._send_json(self.hosted.mcp_transport_placeholder(), HTTPStatus.NOT_IMPLEMENTED)
+
             query = self._query()
             account_id = query.get("account_id")
             end_date = query.get("end_date")
+
+            if route == "/api/hosted/mcp-connection":
+                return self._send_json(self.hosted.mcp_connection_info())
+            if route == "/api/hosted/connections":
+                return self._send_json(self.hosted.connections())
+            if route == "/api/hosted/oauth/meta/start":
+                return self._send_json(self.hosted.oauth_start_preview("meta_ads"), HTTPStatus.NOT_IMPLEMENTED)
+            if route == "/api/hosted/oauth/google/start":
+                return self._send_json(self.hosted.oauth_start_preview("google_ads"), HTTPStatus.NOT_IMPLEMENTED)
 
             if route == "/api/meta/dashboard":
                 return self._send_json(self.service.dashboard(account_id=account_id, end_date=end_date))
@@ -289,6 +304,8 @@ def main() -> None:
     host = settings.web_host
     port = settings.web_port
     AdsWebHandler.settings = settings
+    AdsWebHandler.hosted = HostedConnectionService(settings)
+    AdsWebHandler.service = MetaDashboardService()
     if _api_token_required(settings) and not settings.web_api_token.strip():
         LOGGER.warning("AD_MCP_WEB_API_TOKEN is required for production web API access but is not configured.")
     server = ThreadingHTTPServer((host, port), AdsWebHandler)
