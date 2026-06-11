@@ -8,6 +8,7 @@
     selectedSkillId: "collect_report",
     selectedSkill: null,
     diagnosticsLoaded: false,
+    connectionsLoaded: false,
     currentSection: "skills",
   };
 
@@ -47,6 +48,8 @@
     diagnosticsContract: document.getElementById("diagnostics-contract"),
     diagnosticsTroubleshooting: document.getElementById("diagnostics-troubleshooting-content"),
     diagnosticsRefresh: document.getElementById("diagnostics-refresh"),
+    connectionsContent: document.getElementById("connections-content"),
+    connectionsRefresh: document.getElementById("connections-refresh"),
     skillsCatalog: document.getElementById("skills-catalog"),
     skillsPromptBox: document.getElementById("skills-prompt-box"),
     skillsCopyPrompt: document.getElementById("skills-copy-prompt"),
@@ -75,6 +78,8 @@
     debugHealth: () => requestJson("/api/meta/debug-health"),
     persistence: () => requestJson("/api/meta/persistence"),
     dataContract: () => requestJson("/api/meta/data-contract"),
+    hostedConnections: () => requestJson("/api/hosted/connections"),
+    oauthAuthorizeUrl: (providerSlug) => requestJson(`/api/hosted/oauth/${providerSlug}/authorize-url`),
     budgetSkill: (params) => requestJson(`/api/meta/skills/budget-summary${withQuery(params)}`),
     disableSkill: (params) => requestJson(`/api/meta/skills/disable-candidates${withQuery(params)}`),
     scaleSkill: (params) => requestJson(`/api/meta/skills/scale-candidates${withQuery(params)}`),
@@ -105,6 +110,9 @@
         if (section === "diagnostics" && !state.diagnosticsLoaded) {
           await loadDiagnostics(true);
         }
+        if (section === "connections" && !state.connectionsLoaded) {
+          await loadConnections(true);
+        }
       });
     });
   }
@@ -131,6 +139,9 @@
     });
     el.diagnosticsRefresh.addEventListener("click", () => {
       loadDiagnostics();
+    });
+    el.connectionsRefresh.addEventListener("click", () => {
+      loadConnections();
     });
   }
 
@@ -344,6 +355,42 @@
     }
   }
 
+  async function loadConnections(quiet = false) {
+    renderLoading(el.connectionsContent, "Loading hosted connections…");
+    try {
+      const payload = await api.hostedConnections();
+      renderConnections(payload);
+      state.connectionsLoaded = true;
+    } catch (error) {
+      const message = humanizeError(error);
+      renderError(el.connectionsContent, message || "Could not load hosted connections.");
+      if (!quiet) {
+        toast(message, "error");
+      }
+    }
+  }
+
+  async function startOAuth(provider, button) {
+    const providerSlug = oauthSlug(provider);
+    if (!providerSlug) {
+      toast("OAuth is not available for this provider yet.", "info");
+      return;
+    }
+    button.disabled = true;
+    button.classList.add("is-loading");
+    try {
+      const payload = await api.oauthAuthorizeUrl(providerSlug);
+      if (!payload.authorization_url) {
+        throw new Error("Authorization URL was not returned.");
+      }
+      window.location.assign(payload.authorization_url);
+    } catch (error) {
+      button.disabled = false;
+      button.classList.remove("is-loading");
+      toast(humanizeError(error), "error");
+    }
+  }
+
   function renderOverview(workspace) {
     const summary = workspace.summary || {};
     const metrics = summary.metrics || [];
@@ -407,6 +454,60 @@
         `,
       )
       .join("");
+  }
+
+  function renderConnections(payload) {
+    const platforms = payload.platforms || [];
+    const mcp = payload.mcp || {};
+    const store = payload.connection_store || {};
+    const platformMarkup = platforms.length
+      ? platforms.map((platform) => renderConnectionPlatform(platform)).join("")
+      : renderEmptyMarkup("No platforms were returned.");
+    el.connectionsContent.innerHTML = `
+      <div class="connections-layout">
+        <article class="panel-card connection-summary">
+          <div>
+            <p class="section-kicker">Hosted MCP</p>
+            <h4>${esc(mcp.name || "AdForge MCP")}</h4>
+          </div>
+          <div class="kv-grid">
+            ${renderKv("Transport", mcp.transport || "streamable_http")}
+            ${renderKv("URL", mcp.url || "")}
+            ${renderKv("Store", store.configured ? "configured" : "not created yet")}
+          </div>
+        </article>
+        <div class="connection-platforms">${platformMarkup}</div>
+      </div>
+    `;
+    el.connectionsContent.querySelectorAll("[data-oauth-provider]").forEach((button) => {
+      button.addEventListener("click", () => startOAuth(button.dataset.oauthProvider, button));
+    });
+  }
+
+  function renderConnectionPlatform(platform) {
+    const accounts = platform.accounts || [];
+    const oauthAvailable = Boolean(platform.oauth_target && oauthSlug(platform.provider));
+    const disabled = !oauthAvailable ? "disabled" : "";
+    const buttonText = platform.status === "connected" ? "Reconnect" : "Connect";
+    return `
+      <article class="panel-card connection-platform">
+        <header class="connection-platform__header">
+          <div>
+            <h4>${esc(platform.label || platform.provider)}</h4>
+            <p>${esc(platform.provider)} · ${esc(platform.source || "none")}</p>
+          </div>
+          <span class="status-chip ${statusClass(platform.status)}">${esc(platform.status || "unknown")}</span>
+        </header>
+        <div class="connection-platform__accounts">
+          ${
+            accounts.length
+              ? accounts.map((account) => `<div class="connection-account">${esc(account.name || account.account_id || account.customer_id || "Account")}<span>${esc(account.account_id || account.customer_id || account.advertiser_id || account.direct_client_login || "")}</span></div>`).join("")
+              : renderEmptyMarkup("No connected accounts yet.")
+          }
+        </div>
+        <button type="button" class="btn btn--primary connection-platform__button" data-oauth-provider="${escAttr(platform.provider)}" ${disabled}>${buttonText}</button>
+      </article>
+    `;
   }
 
   function renderOperatorSummary(rows, persistence) {
@@ -1078,6 +1179,15 @@
     `;
   }
 
+  function renderKv(label, value) {
+    return `
+      <div class="kv-row">
+        <span>${esc(label)}</span>
+        <strong>${esc(stringify(value))}</strong>
+      </div>
+    `;
+  }
+
   function renderTable(rows, columns) {
     if (!rows.length) {
       return renderEmptyMarkup("Нет данных для отображения.");
@@ -1303,10 +1413,19 @@
 
   function statusClass(status) {
     const normalized = String(status || "").toUpperCase();
-    if (["ACTIVE", "OK", "READY", "SUCCESS"].includes(normalized)) return "is-success";
-    if (["PAUSED", "PENDING_REVIEW", "LEARNING", "LIMITED"].includes(normalized)) return "is-warning";
+    if (["ACTIVE", "OK", "READY", "SUCCESS", "CONNECTED", "OAUTH_READY"].includes(normalized)) return "is-success";
+    if (["READY_FOR_OAUTH", "OAUTH_NOT_CONFIGURED", "PAUSED", "PENDING_REVIEW", "LEARNING", "LIMITED"].includes(normalized)) return "is-warning";
     if (["DISAPPROVED", "ERROR", "FAILED", "REJECTED"].includes(normalized)) return "is-danger";
     return "is-neutral";
+  }
+
+  function oauthSlug(provider) {
+    return {
+      meta_ads: "meta",
+      google_ads: "google",
+      tiktok_ads: "tiktok",
+      yandex_direct: "yandex",
+    }[provider] || "";
   }
 
   function humanizeError(error) {

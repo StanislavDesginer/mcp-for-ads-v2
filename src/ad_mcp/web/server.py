@@ -158,6 +158,12 @@ class AdsWebHandler(BaseHTTPRequestHandler):
                 return self._send_file(STATIC_ROOT / "app.js", "application/javascript; charset=utf-8")
             if route == self.settings.meta_oauth_redirect_path:
                 return self._send_json(self.hosted.meta_oauth_callback(self._query()))
+            if route == self.settings.google_oauth_redirect_path:
+                return self._send_json(self.hosted.oauth_callback("google_ads", self._query()))
+            if route == self.settings.tiktok_oauth_redirect_path:
+                return self._send_json(self.hosted.oauth_callback("tiktok_ads", self._query()))
+            if route == self.settings.yandex_oauth_redirect_path:
+                return self._send_json(self.hosted.oauth_callback("yandex_direct", self._query()))
 
             if not self._ensure_api_authorized(route):
                 return
@@ -175,10 +181,28 @@ class AdsWebHandler(BaseHTTPRequestHandler):
                 return self._send_json(self.hosted.connections())
             if route == "/api/hosted/oauth/meta/start":
                 return self._redirect(self.hosted.meta_oauth_redirect_url())
+            if route == "/api/hosted/oauth/meta/authorize-url":
+                return self._send_json(self.hosted.oauth_authorization_info("meta_ads"))
             if route == "/api/hosted/oauth/meta/pending":
                 return self._send_json(self.hosted.meta_oauth_pending(str(query["pending_id"])))
             if route == "/api/hosted/oauth/google/start":
-                return self._send_json(self.hosted.oauth_start_preview("google_ads"), HTTPStatus.NOT_IMPLEMENTED)
+                return self._redirect(self.hosted.oauth_redirect_url("google_ads"))
+            if route == "/api/hosted/oauth/google/authorize-url":
+                return self._send_json(self.hosted.oauth_authorization_info("google_ads"))
+            if route == "/api/hosted/oauth/google/pending":
+                return self._send_json(self.hosted.oauth_pending("google_ads", str(query["pending_id"])))
+            if route == "/api/hosted/oauth/tiktok/start":
+                return self._redirect(self.hosted.oauth_redirect_url("tiktok_ads"))
+            if route == "/api/hosted/oauth/tiktok/authorize-url":
+                return self._send_json(self.hosted.oauth_authorization_info("tiktok_ads"))
+            if route == "/api/hosted/oauth/tiktok/pending":
+                return self._send_json(self.hosted.oauth_pending("tiktok_ads", str(query["pending_id"])))
+            if route == "/api/hosted/oauth/yandex/start":
+                return self._redirect(self.hosted.oauth_redirect_url("yandex_direct"))
+            if route == "/api/hosted/oauth/yandex/authorize-url":
+                return self._send_json(self.hosted.oauth_authorization_info("yandex_direct"))
+            if route == "/api/hosted/oauth/yandex/pending":
+                return self._send_json(self.hosted.oauth_pending("yandex_direct", str(query["pending_id"])))
 
             if route == "/api/meta/dashboard":
                 return self._send_json(self.service.dashboard(account_id=account_id, end_date=end_date))
@@ -278,6 +302,12 @@ class AdsWebHandler(BaseHTTPRequestHandler):
                 return self._send_json(self.hosted.import_local_provider(str(payload["provider"])))
             if route == "/api/hosted/oauth/meta/select":
                 return self._send_json(self.hosted.meta_oauth_select(payload))
+            if route == "/api/hosted/oauth/google/select":
+                return self._send_json(self.hosted.oauth_select("google_ads", payload))
+            if route == "/api/hosted/oauth/tiktok/select":
+                return self._send_json(self.hosted.oauth_select("tiktok_ads", payload))
+            if route == "/api/hosted/oauth/yandex/select":
+                return self._send_json(self.hosted.oauth_select("yandex_direct", payload))
             if route == "/api/meta/preview/clone-campaign":
                 return self._send_json(
                     self.service.preview_clone_campaign(

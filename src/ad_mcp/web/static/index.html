@@ -43,6 +43,7 @@
         <h2 class="sidebar-card__title">Разделы</h2>
         <ul class="nav-list">
           <li><button type="button" class="nav-button is-active" data-section="skills">Навыки ИИ / MCP</button></li>
+          <li><button type="button" class="nav-button" data-section="connections">Connections</button></li>
           <li><button type="button" class="nav-button" data-section="overview">Overview / dashboard</button></li>
           <li><button type="button" class="nav-button" data-section="structure">Campaign structure</button></li>
           <li><button type="button" class="nav-button" data-section="issues">Delivery issues</button></li>
@@ -183,6 +184,17 @@
           <h4>Результат выбранного навыка</h4>
           <div id="skills-result"></div>
         </article>
+      </section>
+
+      <section id="connections" class="content-section" data-section-panel hidden>
+        <header class="section-header section-header--with-action">
+          <div>
+            <h3>Connections</h3>
+            <p>Hosted OAuth connectors for ad platforms. Connect an account here, then use it through AdForge MCP in Codex, Claude, or another MCP client.</p>
+          </div>
+          <button id="connections-refresh" type="button" class="btn btn--secondary">Refresh</button>
+        </header>
+        <div id="connections-content"></div>
       </section>
 
       <section id="overview" class="content-section" data-section-panel hidden>

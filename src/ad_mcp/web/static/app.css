@@ -383,6 +383,70 @@ button:focus-visible {
   font-size: 15px;
 }
 
+.section-header--with-action {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.connections-layout {
+  display: grid;
+  gap: 12px;
+}
+
+.connection-summary {
+  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
+  align-items: start;
+}
+
+.connection-platforms {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.connection-platform {
+  align-content: start;
+}
+
+.connection-platform__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.connection-platform__header p {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.connection-platform__accounts {
+  display: grid;
+  gap: 8px;
+}
+
+.connection-account {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.connection-account span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.connection-platform__button {
+  justify-self: start;
+}
+
 .overview-hero {
   background: linear-gradient(135deg, #ffffff 0%, #eef5ff 100%);
 }
@@ -865,6 +929,10 @@ tbody tr:hover {
     grid-template-columns: 1fr;
   }
 
+  .connection-platforms {
+    grid-template-columns: 1fr;
+  }
+
   .panel-grid--two {
     grid-template-columns: 1fr;
   }
@@ -882,6 +950,11 @@ tbody tr:hover {
 
   .topbar__controls {
     display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .section-header--with-action,
+  .connection-summary {
     grid-template-columns: 1fr;
   }
 

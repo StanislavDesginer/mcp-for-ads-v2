@@ -7,6 +7,7 @@ from ad_mcp.core.config_loader import load_provider_from_connections
 from ad_mcp.core.connection_store import HostedConnectionStore, safe_account_summary
 from ad_mcp.settings import Settings
 from ad_mcp.web.meta_oauth import MetaOAuthService
+from ad_mcp.web.partner_oauth import GoogleOAuthService, TikTokOAuthService, YandexOAuthService
 
 
 @dataclass(frozen=True)
@@ -20,13 +21,15 @@ class PlatformDescriptor:
 PLATFORMS = (
     PlatformDescriptor("meta_ads", "Meta Ads", "beta", True),
     PlatformDescriptor("google_ads", "Google Ads", "beta", True),
-    PlatformDescriptor("tiktok_ads", "TikTok Ads", "later", False),
-    PlatformDescriptor("yandex_direct", "Yandex Direct", "later", False),
+    PlatformDescriptor("tiktok_ads", "TikTok Ads", "next", True),
+    PlatformDescriptor("yandex_direct", "Yandex Direct", "next", True),
 )
 
 OAUTH_REDIRECT_SETTINGS = {
     "meta_ads": "meta_oauth_redirect_path",
     "google_ads": "google_oauth_redirect_path",
+    "tiktok_ads": "tiktok_oauth_redirect_path",
+    "yandex_direct": "yandex_oauth_redirect_path",
 }
 
 def _route_path(path: str) -> str:
@@ -49,6 +52,9 @@ class HostedConnectionService:
         self._settings = settings or Settings()
         self._store = HostedConnectionStore(self._settings.connection_store_file)
         self._meta_oauth = MetaOAuthService(self._settings)
+        self._google_oauth = GoogleOAuthService(self._settings)
+        self._tiktok_oauth = TikTokOAuthService(self._settings)
+        self._yandex_oauth = YandexOAuthService(self._settings)
 
     def _public_base_url(self) -> str:
         return self._settings.public_base_or_local_web_url
@@ -113,12 +119,14 @@ class HostedConnectionService:
                 "status": "planned_later",
                 "message": "This platform is outside the first beta OAuth scope.",
             }
+        service = self._oauth_service(provider)
+        configured = service.configured() if service is not None else False
         return {
             "provider": platform.provider,
             "label": platform.label,
-            "status": "oauth_ready" if self._meta_oauth.configured() and provider == "meta_ads" else "oauth_not_configured",
+            "status": "oauth_ready" if configured else "oauth_not_configured",
             "redirect_url": _join_url(self._public_base_url(), self._oauth_redirect_path(platform.provider)),
-            "message": "OAuth can start when app credentials are configured." if provider == "meta_ads" else "OAuth app credentials and callback handling are planned next.",
+            "message": "OAuth can start when app credentials are configured.",
         }
 
     def meta_oauth_redirect_url(self) -> str:
@@ -134,6 +142,32 @@ class HostedConnectionService:
         pending_id = str(payload["pending_id"])
         account_ids = payload.get("account_ids") or []
         return self._meta_oauth.select_accounts(pending_id, [str(item) for item in account_ids])
+
+    def oauth_redirect_url(self, provider: str) -> str:
+        service = self._require_oauth_service(provider)
+        return service.authorization_url()
+
+    def oauth_authorization_info(self, provider: str) -> dict[str, Any]:
+        service = self._require_oauth_service(provider)
+        return {
+            "provider": provider,
+            "status": "oauth_ready",
+            "authorization_url": service.authorization_url(),
+        }
+
+    def oauth_callback(self, provider: str, query: dict[str, str]) -> dict[str, Any]:
+        service = self._require_oauth_service(provider)
+        return service.handle_callback(query)
+
+    def oauth_pending(self, provider: str, pending_id: str) -> dict[str, Any]:
+        service = self._require_oauth_service(provider)
+        return service.pending_selection(pending_id)
+
+    def oauth_select(self, provider: str, payload: dict[str, Any]) -> dict[str, Any]:
+        service = self._require_oauth_service(provider)
+        pending_id = str(payload["pending_id"])
+        account_ids = payload.get("account_ids") or []
+        return service.select_accounts(pending_id, [str(item) for item in account_ids])
 
     def mcp_transport_placeholder(self) -> dict[str, Any]:
         info = self.mcp_connection_info()
@@ -179,3 +213,18 @@ class HostedConnectionService:
         if not setting_name:
             return f"/oauth/{provider}/callback"
         return str(getattr(self._settings, setting_name))
+
+    def _oauth_service(self, provider: str):
+        services = {
+            "meta_ads": self._meta_oauth,
+            "google_ads": self._google_oauth,
+            "tiktok_ads": self._tiktok_oauth,
+            "yandex_direct": self._yandex_oauth,
+        }
+        return services.get(provider)
+
+    def _require_oauth_service(self, provider: str):
+        service = self._oauth_service(provider)
+        if service is None:
+            raise ValueError(f"OAuth flow is not implemented for provider: {provider}")
+        return service
