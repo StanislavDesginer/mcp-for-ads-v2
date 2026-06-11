@@ -104,3 +104,55 @@ def test_google_customer_id_becomes_account_id_for_oauth_store(tmp_path: Path) -
     config = store.provider_config("google_ads")
 
     assert config["accounts"][0]["account_id"] == "123-456-7890"
+
+
+def test_safe_account_summary_keeps_provider_metadata_without_secrets(tmp_path: Path) -> None:
+    store = HostedConnectionStore(tmp_path / "tokens" / "connections.json")
+    store.save_provider_config(
+        "tiktok_ads",
+        {
+            "provider": "tiktok_ads",
+            "accounts": [
+                {
+                    "name": "TikTok Advertiser",
+                    "account_id": "744",
+                    "advertiser_id": "744",
+                    "app_name": "AdForge MCP",
+                    "app_id": "app-id",
+                    "verification_status": "Approved",
+                    "requested_permissions": ["Reporting", "Ads Management"],
+                    "secret": "tiktok-secret",
+                }
+            ],
+        },
+    )
+    store.save_provider_config(
+        "yandex_direct",
+        {
+            "provider": "yandex_direct",
+            "accounts": [
+                {
+                    "name": "Yandex Client",
+                    "account_id": "client-login",
+                    "login": "agency-login",
+                    "direct_client_login": "client-login",
+                    "api_access_status": "opened",
+                    "api_points": 32000,
+                    "access_token": "yandex-token",
+                }
+            ],
+        },
+    )
+
+    tiktok = store.safe_provider_status("tiktok_ads")["accounts"][0]
+    yandex = store.safe_provider_status("yandex_direct")["accounts"][0]
+    serialized = json.dumps({"tiktok": tiktok, "yandex": yandex})
+
+    assert tiktok["app_name"] == "AdForge MCP"
+    assert tiktok["verification_status"] == "Approved"
+    assert tiktok["requested_permissions"] == ["Reporting", "Ads Management"]
+    assert yandex["direct_client_login"] == "client-login"
+    assert yandex["api_access_status"] == "opened"
+    assert yandex["api_points"] == "32000"
+    assert "tiktok-secret" not in serialized
+    assert "yandex-token" not in serialized

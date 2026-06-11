@@ -90,7 +90,9 @@ def test_meta_oauth_callback_discovers_accounts_and_select_saves_credentials(tmp
     assert pending["accounts"][0]["account_id"] == "act_111"
     assert "long-token" not in str(pending)
     assert selected["status"] == "connected"
-    assert selected["accounts"] == [{"name": "Client Meta 1", "account_id": "act_111", "status": "connected", "credentials_present": True}]
+    assert selected["accounts"] == [
+        {"name": "Client Meta 1", "account_id": "act_111", "app_id": "meta-app-id", "status": "connected", "credentials_present": True}
+    ]
     assert stored_config["accounts"][0]["access_token"] == "long-token"
     assert stored_config["accounts"][0]["app_secret"] == "meta-app-secret"
 

@@ -31,8 +31,18 @@ SAFE_ACCOUNT_KEYS = (
     "login_customer_id",
     "advertiser_id",
     "login",
+    "agency_login",
+    "direct_client_login",
+    "app_name",
+    "app_id",
+    "verification_status",
+    "api_access_status",
+    "api_points",
+    "scope",
     "status",
 )
+
+SAFE_ACCOUNT_LIST_KEYS = ("requested_permissions",)
 
 
 def safe_account_summary(account: dict[str, Any]) -> dict[str, Any]:
@@ -41,6 +51,10 @@ def safe_account_summary(account: dict[str, Any]) -> dict[str, Any]:
         value = account.get(key)
         if value is not None:
             safe[key] = str(value)
+    for key in SAFE_ACCOUNT_LIST_KEYS:
+        value = account.get(key)
+        if isinstance(value, list):
+            safe[key] = [str(item) for item in value]
     credentials = account.get("credentials") if isinstance(account.get("credentials"), dict) else {}
     safe["credentials_present"] = any(account.get(key) for key in SECRET_KEYS) or any(credentials.get(key) for key in SECRET_KEYS)
     return safe
