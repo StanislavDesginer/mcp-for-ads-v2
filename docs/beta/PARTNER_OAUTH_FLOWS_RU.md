@@ -24,7 +24,9 @@ Dashboard использует общий onboarding API:
 
 ```http
 GET /api/hosted/connections
+GET /api/hosted/oauth/diagnostics
 GET /api/hosted/oauth/<provider>/authorize-url
+GET /api/hosted/oauth/<provider>/diagnostics
 GET /api/hosted/oauth/<provider>/pending?pending_id=<pending-id>
 POST /api/hosted/oauth/<provider>/select
 POST /api/hosted/connections/disconnect
@@ -41,6 +43,7 @@ AD_MCP_GOOGLE_OAUTH_REDIRECT_PATH=/oauth/google/callback
 AD_MCP_GOOGLE_OAUTH_CLIENT_ID=your-google-oauth-client-id
 AD_MCP_GOOGLE_OAUTH_CLIENT_SECRET=your-google-oauth-client-secret
 AD_MCP_GOOGLE_ADS_DEVELOPER_TOKEN=your-google-ads-developer-token
+AD_MCP_GOOGLE_ADS_LOGIN_CUSTOMER_ID=
 AD_MCP_GOOGLE_ADS_API_VERSION=v20
 AD_MCP_GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/adwords
 ```
@@ -60,7 +63,7 @@ GET /api/hosted/oauth/google/pending?pending_id=<pending-id>
 POST /api/hosted/oauth/google/select
 ```
 
-После callback сервер меняет `code` на `access_token` и `refresh_token`, вызывает Google Ads `customers:listAccessibleCustomers`, показывает safe список customer IDs и сохраняет выбранные аккаунты.
+После callback сервер меняет `code` на `access_token` и `refresh_token`, вызывает Google Ads `customers:listAccessibleCustomers`, затем best-effort проверяет manager/customer структуру через `customer_client`, показывает safe список customer IDs и сохраняет выбранные аккаунты.
 
 ## TikTok Ads
 
@@ -102,6 +105,7 @@ AD_MCP_YANDEX_OAUTH_REDIRECT_PATH=/oauth/yandex/callback
 AD_MCP_YANDEX_OAUTH_CLIENT_ID=your-yandex-oauth-client-id
 AD_MCP_YANDEX_OAUTH_CLIENT_SECRET=your-yandex-oauth-client-secret
 AD_MCP_YANDEX_OAUTH_SCOPE=direct:api
+AD_MCP_YANDEX_DIRECT_CLIENTS_URL=https://api.direct.yandex.com/json/v5/clients
 AD_MCP_YANDEX_DIRECT_LOGIN=your-agency-login
 AD_MCP_YANDEX_DIRECT_CLIENT_LOGIN=your-client-login
 ```
@@ -121,7 +125,7 @@ GET /api/hosted/oauth/yandex/pending?pending_id=<pending-id>
 POST /api/hosted/oauth/yandex/select
 ```
 
-Для Yandex Direct discovery аккаунтов пока не вызывается отдельно: flow сохраняет настроенный `direct_client_login`, потому что клиентский логин уже должен быть известен после настройки доступа к Direct API.
+Для Yandex Direct backend пытается получить доступные клиентские логины через `Clients.get`. Если Direct API не возвращает список, используется только явно заданный `AD_MCP_YANDEX_DIRECT_CLIENT_LOGIN`.
 
 ## Безопасность
 
@@ -129,3 +133,7 @@ POST /api/hosted/oauth/yandex/select
 - Секреты не возвращаются наружу через API.
 - Токены и client secrets хранятся только в ignored `tokens/connections.json`.
 - Реальные write-действия в beta остаются preview-only.
+
+## Manual checklist
+
+Для live-проверки на реальных приложениях и кабинетах используйте `docs/beta/OAUTH_MANUAL_CHECKLIST_RU.md`.

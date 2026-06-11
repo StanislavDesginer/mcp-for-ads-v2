@@ -22,6 +22,17 @@ class MetaOAuthError(RuntimeError):
     pass
 
 
+def _redact_oauth_error(text: str) -> str:
+    clean = text
+    for marker in ("access_token=", "client_secret=", "app_secret="):
+        while marker in clean:
+            start = clean.find(marker) + len(marker)
+            end_candidates = [idx for idx in (clean.find("&", start), clean.find(" ", start), clean.find("'", start), clean.find('"', start)) if idx != -1]
+            end = min(end_candidates) if end_candidates else len(clean)
+            clean = f"{clean[:start]}***REDACTED***{clean[end:]}"
+    return clean
+
+
 def _b64_encode(payload: bytes) -> str:
     return base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
 
@@ -169,12 +180,11 @@ class MetaOAuthService:
         accounts: list[dict[str, Any]] = []
         path_or_url = "/me/adaccounts"
         params: dict[str, Any] | None = {
-            "access_token": access_token,
             "fields": "id,account_id,name,account_status,currency,timezone_name",
             "limit": 500,
         }
         for _ in range(10):
-            payload = self._graph_get(path_or_url, params)
+            payload = self._graph_get(path_or_url, params, access_token=access_token)
             for item in payload.get("data", []) or []:
                 if not isinstance(item, dict):
                     continue
@@ -198,16 +208,17 @@ class MetaOAuthService:
             params = None
         return accounts
 
-    def _graph_get(self, path_or_url: str, params: dict[str, Any] | None) -> dict[str, Any]:
+    def _graph_get(self, path_or_url: str, params: dict[str, Any] | None, access_token: str | None = None) -> dict[str, Any]:
         url = path_or_url if path_or_url.startswith("https://") else f"https://graph.facebook.com/{self._api_version()}{path_or_url}"
         client = self._http_client or httpx.Client(timeout=20.0)
         close_client = self._http_client is None
+        headers = {"Authorization": f"Bearer {access_token}"} if access_token else None
         try:
-            response = client.get(url, params=params)
+            response = client.get(url, params=params, headers=headers)
             response.raise_for_status()
             payload = response.json()
         except httpx.HTTPError as exc:
-            raise MetaOAuthError(f"Meta Graph request failed: {exc}") from exc
+            raise MetaOAuthError(f"Meta Graph request failed: {_redact_oauth_error(str(exc))}") from exc
         finally:
             if close_client:
                 client.close()

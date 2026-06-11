@@ -20,6 +20,27 @@ class PartnerOAuthError(RuntimeError):
     pass
 
 
+def _redact_oauth_error(text: str) -> str:
+    clean = text
+    for marker in ("access_token=", "refresh_token=", "client_secret=", "secret=", "developer-token=", "Authorization:"):
+        while marker in clean:
+            start = clean.find(marker) + len(marker)
+            end_candidates = [
+                idx
+                for idx in (
+                    clean.find("&", start),
+                    clean.find(" ", start),
+                    clean.find("'", start),
+                    clean.find('"', start),
+                    clean.find("\\n", start),
+                )
+                if idx != -1
+            ]
+            end = min(end_candidates) if end_candidates else len(clean)
+            clean = f"{clean[:start]}***REDACTED***{clean[end:]}"
+    return clean
+
+
 def _b64_encode(payload: bytes) -> str:
     return base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
 
@@ -119,7 +140,7 @@ class BasePartnerOAuthService(ABC):
             response.raise_for_status()
             payload = response.json()
         except httpx.HTTPError as exc:
-            raise PartnerOAuthError(f"{self.provider} OAuth GET failed: {exc}") from exc
+            raise PartnerOAuthError(f"{self.provider} OAuth GET failed: {_redact_oauth_error(str(exc))}") from exc
         finally:
             if close_client:
                 client.close()
@@ -134,18 +155,18 @@ class BasePartnerOAuthService(ABC):
         data: dict[str, Any] | None = None,
         json_body: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
+    ) -> Any:
         client, close_client = self._client()
         try:
             response = client.post(url, data=data, json=json_body, headers=headers)
             response.raise_for_status()
             payload = response.json()
         except httpx.HTTPError as exc:
-            raise PartnerOAuthError(f"{self.provider} OAuth POST failed: {exc}") from exc
+            raise PartnerOAuthError(f"{self.provider} OAuth POST failed: {_redact_oauth_error(str(exc))}") from exc
         finally:
             if close_client:
                 client.close()
-        if not isinstance(payload, dict):
+        if not isinstance(payload, (dict, list)):
             raise PartnerOAuthError(f"{self.provider} returned a non-object payload.")
         return payload
 
@@ -217,6 +238,7 @@ class GoogleOAuthService(BasePartnerOAuthService):
                 "oauth_client_secret": self._settings.google_oauth_client_secret.strip(),
                 "refresh_token": refresh_token,
                 "access_token": access_token,
+                "login_customer_id": self._settings.google_ads_login_customer_id.strip(),
             },
             ttl_seconds=self.state_ttl_seconds,
             source="google_oauth",
@@ -244,15 +266,78 @@ class GoogleOAuthService(BasePartnerOAuthService):
                 "developer-token": self._settings.google_ads_developer_token.strip(),
             },
         )
-        accounts: list[dict[str, Any]] = []
+        accounts_by_id: dict[str, dict[str, Any]] = {}
         for resource_name in payload.get("resourceNames", []) or []:
             customer_id = str(resource_name).split("/")[-1].strip()
             if customer_id:
+                accounts_by_id[customer_id] = {
+                    "name": f"Google Ads {customer_id}",
+                    "account_id": customer_id,
+                    "customer_id": customer_id,
+                    "manager_customer_id": "",
+                    "login_customer_id": self._settings.google_ads_login_customer_id.strip(),
+                    "google_ads_account_type": "accessible_customer",
+                    "status": "connected",
+                }
+                for client_account in self._fetch_customer_clients(access_token, customer_id):
+                    accounts_by_id.setdefault(client_account["customer_id"], client_account)
+        return list(accounts_by_id.values())
+
+    def _fetch_customer_clients(self, access_token: str, manager_customer_id: str) -> list[dict[str, Any]]:
+        version = (self._settings.google_ads_api_version.strip() or "v20").lstrip("/")
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "developer-token": self._settings.google_ads_developer_token.strip(),
+            "login-customer-id": self._settings.google_ads_login_customer_id.strip() or manager_customer_id,
+        }
+        query = """
+            SELECT
+              customer_client.client_customer,
+              customer_client.descriptive_name,
+              customer_client.id,
+              customer_client.manager,
+              customer_client.level,
+              customer_client.status,
+              customer_client.currency_code,
+              customer_client.time_zone
+            FROM customer_client
+            WHERE customer_client.level <= 1
+        """
+        try:
+            payload = self._post_json(
+                f"https://googleads.googleapis.com/{version}/customers/{manager_customer_id}/googleAds:searchStream",
+                json_body={"query": " ".join(query.split())},
+                headers=headers,
+            )
+        except PartnerOAuthError:
+            return []
+        chunks = payload if isinstance(payload, list) else [payload]
+        accounts: list[dict[str, Any]] = []
+        for chunk in chunks:
+            if not isinstance(chunk, dict):
+                continue
+            for row in chunk.get("results", []) or []:
+                client = row.get("customerClient") if isinstance(row, dict) else None
+                if not isinstance(client, dict):
+                    continue
+                customer_id = str(client.get("id") or "").strip()
+                if not customer_id:
+                    client_customer = str(client.get("clientCustomer") or "")
+                    customer_id = client_customer.split("/")[-1].strip()
+                if not customer_id:
+                    continue
                 accounts.append(
                     {
-                        "name": f"Google Ads {customer_id}",
+                        "name": client.get("descriptiveName") or f"Google Ads {customer_id}",
                         "account_id": customer_id,
                         "customer_id": customer_id,
+                        "manager_customer_id": manager_customer_id,
+                        "login_customer_id": headers["login-customer-id"],
+                        "google_ads_account_type": "manager" if client.get("manager") else "customer",
+                        "google_ads_level": client.get("level"),
+                        "google_ads_status": client.get("status"),
+                        "currency": client.get("currencyCode"),
+                        "timezone_name": client.get("timeZone"),
                         "status": "connected",
                     }
                 )
@@ -300,22 +385,25 @@ class TikTokOAuthService(BasePartnerOAuthService):
         refresh_token = str(token_data.get("refresh_token", "") or "").strip()
         if not access_token:
             raise PartnerOAuthError("TikTok OAuth token exchange did not return access_token.")
-        advertiser_ids = self._advertiser_ids_from_payload(token_data)
-        if not advertiser_ids:
-            advertiser_ids = self._fetch_advertiser_ids(access_token)
+        advertisers = self._advertisers_from_payload(token_data)
+        if not advertisers:
+            advertisers = self._fetch_advertisers(access_token)
+        advertiser_ids = [item["advertiser_id"] for item in advertisers]
         if not advertiser_ids and self._settings.tiktok_oauth_advertiser_id.strip():
-            advertiser_ids = [self._settings.tiktok_oauth_advertiser_id.strip()]
+            fallback_id = self._settings.tiktok_oauth_advertiser_id.strip()
+            advertisers = [{"advertiser_id": fallback_id, "name": f"TikTok Advertiser {fallback_id}"}]
+            advertiser_ids = [fallback_id]
         if not advertiser_ids:
             raise PartnerOAuthError("TikTok OAuth succeeded, but no advertiser IDs were returned.")
         accounts = [
             {
-                "name": f"TikTok Advertiser {advertiser_id}",
-                "account_id": advertiser_id,
-                "advertiser_id": advertiser_id,
+                "name": advertiser.get("name") or f"TikTok Advertiser {advertiser['advertiser_id']}",
+                "account_id": advertiser["advertiser_id"],
+                "advertiser_id": advertiser["advertiser_id"],
                 "app_id": self._settings.tiktok_oauth_app_id.strip(),
                 "status": "connected",
             }
-            for advertiser_id in advertiser_ids
+            for advertiser in advertisers
         ]
         pending = self._store.save_oauth_pending(
             self.provider,
@@ -341,7 +429,7 @@ class TikTokOAuthService(BasePartnerOAuthService):
             },
         )
 
-    def _fetch_advertiser_ids(self, access_token: str) -> list[str]:
+    def _fetch_advertisers(self, access_token: str) -> list[dict[str, str]]:
         try:
             payload = self._get_json(
                 self._settings.tiktok_oauth_advertiser_get_url.strip(),
@@ -350,28 +438,32 @@ class TikTokOAuthService(BasePartnerOAuthService):
         except PartnerOAuthError:
             return []
         data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
-        return self._advertiser_ids_from_payload(data)
+        return self._advertisers_from_payload(data)
 
-    def _advertiser_ids_from_payload(self, payload: dict[str, Any]) -> list[str]:
+    def _advertisers_from_payload(self, payload: dict[str, Any]) -> list[dict[str, str]]:
         candidates = (
             payload.get("advertiser_ids")
             or payload.get("advertiser_id_list")
+            or payload.get("advertiser_info")
+            or payload.get("list")
             or payload.get("advertiser_id")
             or []
         )
         if isinstance(candidates, str):
-            return [candidates]
+            return [{"advertiser_id": candidates, "name": f"TikTok Advertiser {candidates}"}]
         if isinstance(candidates, list):
-            ids: list[str] = []
+            advertisers: list[dict[str, str]] = []
             for item in candidates:
                 if isinstance(item, dict):
-                    candidate = item.get("advertiser_id") or item.get("id")
+                    candidate = item.get("advertiser_id") or item.get("advertiserId") or item.get("id")
+                    name = item.get("advertiser_name") or item.get("advertiserName") or item.get("name")
                 else:
                     candidate = item
+                    name = None
                 value = str(candidate or "").strip()
                 if value:
-                    ids.append(value)
-            return ids
+                    advertisers.append({"advertiser_id": value, "name": str(name or f"TikTok Advertiser {value}")})
+            return advertisers
         return []
 
 
@@ -417,20 +509,24 @@ class YandexOAuthService(BasePartnerOAuthService):
         refresh_token = str(token_payload.get("refresh_token", "") or "").strip()
         if not access_token:
             raise PartnerOAuthError("Yandex OAuth token exchange did not return access_token.")
-        account_id = self._settings.yandex_direct_client_login.strip() or self._settings.yandex_direct_login.strip()
-        if not account_id:
-            raise PartnerOAuthError("Yandex Direct client login is not configured.")
-        account = {
-            "name": f"Yandex Direct {account_id}",
-            "account_id": account_id,
-            "login": self._settings.yandex_direct_login.strip(),
-            "direct_client_login": self._settings.yandex_direct_client_login.strip() or account_id,
-            "scope": self._settings.yandex_oauth_scope.strip(),
-            "status": "connected",
-        }
+        accounts = self._fetch_direct_clients(access_token)
+        if not accounts:
+            account_id = self._settings.yandex_direct_client_login.strip() or self._settings.yandex_direct_login.strip()
+            if not account_id:
+                raise PartnerOAuthError("Yandex Direct clients were not returned and AD_MCP_YANDEX_DIRECT_CLIENT_LOGIN is not configured.")
+            accounts = [
+                {
+                    "name": f"Yandex Direct {account_id}",
+                    "account_id": account_id,
+                    "login": self._settings.yandex_direct_login.strip(),
+                    "direct_client_login": self._settings.yandex_direct_client_login.strip() or account_id,
+                    "scope": self._settings.yandex_oauth_scope.strip(),
+                    "status": "connected",
+                }
+            ]
         pending = self._store.save_oauth_pending(
             self.provider,
-            [account],
+            accounts,
             credentials={
                 "oauth_client_id": self._settings.yandex_oauth_client_id.strip(),
                 "oauth_client_secret": self._settings.yandex_oauth_client_secret.strip(),
@@ -441,6 +537,44 @@ class YandexOAuthService(BasePartnerOAuthService):
             source="yandex_oauth",
         )
         return pending | {"status": "pending_account_selection", "account_count": len(pending["accounts"])}
+
+    def _fetch_direct_clients(self, access_token: str) -> list[dict[str, Any]]:
+        try:
+            payload = self._post_json(
+                self._settings.yandex_direct_clients_url.strip(),
+                json_body={"method": "get", "params": {"FieldNames": ["Login", "ClientInfo", "Currency", "Archived"]}},
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept-Language": "en",
+                    "Content-Type": "application/json; charset=utf-8",
+                },
+            )
+        except PartnerOAuthError:
+            return []
+        if not isinstance(payload, dict):
+            return []
+        result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+        clients = result.get("Clients") if isinstance(result, dict) else []
+        accounts: list[dict[str, Any]] = []
+        for client in clients or []:
+            if not isinstance(client, dict):
+                continue
+            login = str(client.get("Login") or "").strip()
+            if not login:
+                continue
+            accounts.append(
+                {
+                    "name": client.get("ClientInfo") or f"Yandex Direct {login}",
+                    "account_id": login,
+                    "login": self._settings.yandex_direct_login.strip(),
+                    "direct_client_login": login,
+                    "scope": self._settings.yandex_oauth_scope.strip(),
+                    "currency": client.get("Currency"),
+                    "yandex_archived": client.get("Archived"),
+                    "status": "connected",
+                }
+            )
+        return accounts
 
     def _exchange_code_for_token(self, code: str, redirect_uri: str) -> dict[str, Any]:
         return self._post_json(

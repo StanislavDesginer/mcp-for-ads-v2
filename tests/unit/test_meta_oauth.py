@@ -23,13 +23,15 @@ class _FakeMetaHTTP:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict | None]] = []
 
-    def get(self, url: str, params: dict | None = None) -> _FakeResponse:
+    def get(self, url: str, params: dict | None = None, headers: dict | None = None) -> _FakeResponse:
         self.calls.append((url, params))
         if url.endswith("/oauth/access_token") and params and params.get("code") == "callback-code":
             return _FakeResponse({"access_token": "short-token"})
         if url.endswith("/oauth/access_token") and params and params.get("grant_type") == "fb_exchange_token":
             return _FakeResponse({"access_token": "long-token"})
         if url.endswith("/me/adaccounts"):
+            assert headers == {"Authorization": "Bearer long-token"}
+            assert params and "access_token" not in params
             return _FakeResponse(
                 {
                     "data": [
@@ -91,7 +93,15 @@ def test_meta_oauth_callback_discovers_accounts_and_select_saves_credentials(tmp
     assert "long-token" not in str(pending)
     assert selected["status"] == "connected"
     assert selected["accounts"] == [
-        {"name": "Client Meta 1", "account_id": "act_111", "app_id": "meta-app-id", "status": "connected", "credentials_present": True}
+        {
+            "name": "Client Meta 1",
+            "account_id": "act_111",
+            "app_id": "meta-app-id",
+            "currency": "USD",
+            "timezone_name": "UTC",
+            "status": "connected",
+            "credentials_present": True,
+        }
     ]
     assert stored_config["accounts"][0]["access_token"] == "long-token"
     assert stored_config["accounts"][0]["app_secret"] == "meta-app-secret"

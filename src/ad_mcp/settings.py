@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
     google_ads_developer_token: str = ""
+    google_ads_login_customer_id: str = ""
     google_ads_api_version: str = "v20"
     google_oauth_scopes: str = "https://www.googleapis.com/auth/adwords"
     google_oauth_state_ttl_seconds: int = 900
@@ -59,6 +60,7 @@ class Settings(BaseSettings):
     yandex_oauth_scope: str = "direct:api"
     yandex_oauth_authorize_url: str = "https://oauth.yandex.ru/authorize"
     yandex_oauth_token_url: str = "https://oauth.yandex.ru/token"
+    yandex_direct_clients_url: str = "https://api.direct.yandex.com/json/v5/clients"
     yandex_direct_login: str = ""
     yandex_direct_client_login: str = ""
     yandex_oauth_state_ttl_seconds: int = 900

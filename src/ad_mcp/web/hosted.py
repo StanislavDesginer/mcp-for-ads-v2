@@ -33,6 +33,52 @@ OAUTH_REDIRECT_SETTINGS = {
     "yandex_direct": "yandex_oauth_redirect_path",
 }
 
+OAUTH_PROVIDER_SLUGS = {
+    "meta_ads": "meta",
+    "google_ads": "google",
+    "tiktok_ads": "tiktok",
+    "yandex_direct": "yandex",
+}
+
+OAUTH_REQUIRED_ENV = {
+    "meta_ads": ("AD_MCP_META_OAUTH_APP_ID", "AD_MCP_META_OAUTH_APP_SECRET"),
+    "google_ads": ("AD_MCP_GOOGLE_OAUTH_CLIENT_ID", "AD_MCP_GOOGLE_OAUTH_CLIENT_SECRET", "AD_MCP_GOOGLE_ADS_DEVELOPER_TOKEN"),
+    "tiktok_ads": ("AD_MCP_TIKTOK_OAUTH_APP_ID", "AD_MCP_TIKTOK_OAUTH_APP_SECRET"),
+    "yandex_direct": ("AD_MCP_YANDEX_OAUTH_CLIENT_ID", "AD_MCP_YANDEX_OAUTH_CLIENT_SECRET"),
+}
+
+OAUTH_OPTIONAL_ENV = {
+    "meta_ads": ("AD_MCP_META_OAUTH_API_VERSION", "AD_MCP_META_OAUTH_SCOPES"),
+    "google_ads": ("AD_MCP_GOOGLE_ADS_LOGIN_CUSTOMER_ID", "AD_MCP_GOOGLE_ADS_API_VERSION", "AD_MCP_GOOGLE_OAUTH_SCOPES"),
+    "tiktok_ads": ("AD_MCP_TIKTOK_OAUTH_AUTH_URL", "AD_MCP_TIKTOK_OAUTH_TOKEN_URL", "AD_MCP_TIKTOK_OAUTH_ADVERTISER_GET_URL", "AD_MCP_TIKTOK_OAUTH_ADVERTISER_ID"),
+    "yandex_direct": ("AD_MCP_YANDEX_OAUTH_SCOPE", "AD_MCP_YANDEX_DIRECT_CLIENTS_URL", "AD_MCP_YANDEX_DIRECT_LOGIN", "AD_MCP_YANDEX_DIRECT_CLIENT_LOGIN"),
+}
+
+ENV_TO_SETTING = {
+    "AD_MCP_META_OAUTH_APP_ID": "meta_oauth_app_id",
+    "AD_MCP_META_OAUTH_APP_SECRET": "meta_oauth_app_secret",
+    "AD_MCP_META_OAUTH_API_VERSION": "meta_oauth_api_version",
+    "AD_MCP_META_OAUTH_SCOPES": "meta_oauth_scopes",
+    "AD_MCP_GOOGLE_OAUTH_CLIENT_ID": "google_oauth_client_id",
+    "AD_MCP_GOOGLE_OAUTH_CLIENT_SECRET": "google_oauth_client_secret",
+    "AD_MCP_GOOGLE_ADS_DEVELOPER_TOKEN": "google_ads_developer_token",
+    "AD_MCP_GOOGLE_ADS_LOGIN_CUSTOMER_ID": "google_ads_login_customer_id",
+    "AD_MCP_GOOGLE_ADS_API_VERSION": "google_ads_api_version",
+    "AD_MCP_GOOGLE_OAUTH_SCOPES": "google_oauth_scopes",
+    "AD_MCP_TIKTOK_OAUTH_APP_ID": "tiktok_oauth_app_id",
+    "AD_MCP_TIKTOK_OAUTH_APP_SECRET": "tiktok_oauth_app_secret",
+    "AD_MCP_TIKTOK_OAUTH_AUTH_URL": "tiktok_oauth_auth_url",
+    "AD_MCP_TIKTOK_OAUTH_TOKEN_URL": "tiktok_oauth_token_url",
+    "AD_MCP_TIKTOK_OAUTH_ADVERTISER_GET_URL": "tiktok_oauth_advertiser_get_url",
+    "AD_MCP_TIKTOK_OAUTH_ADVERTISER_ID": "tiktok_oauth_advertiser_id",
+    "AD_MCP_YANDEX_OAUTH_CLIENT_ID": "yandex_oauth_client_id",
+    "AD_MCP_YANDEX_OAUTH_CLIENT_SECRET": "yandex_oauth_client_secret",
+    "AD_MCP_YANDEX_OAUTH_SCOPE": "yandex_oauth_scope",
+    "AD_MCP_YANDEX_DIRECT_CLIENTS_URL": "yandex_direct_clients_url",
+    "AD_MCP_YANDEX_DIRECT_LOGIN": "yandex_direct_login",
+    "AD_MCP_YANDEX_DIRECT_CLIENT_LOGIN": "yandex_direct_client_login",
+}
+
 def _route_path(path: str) -> str:
     clean = (path or "/mcp").strip()
     if not clean.startswith("/"):
@@ -89,6 +135,17 @@ class HostedConnectionService:
             "mcp": self.mcp_connection_info(),
             "connection_store": self._store.status() | {"path": self._settings.connection_store_path},
             "platforms": platforms,
+        }
+
+    def oauth_diagnostics(self, provider: str | None = None) -> dict[str, Any]:
+        requested = [platform for platform in PLATFORMS if provider in (None, platform.provider)]
+        if provider is not None and not requested:
+            raise ValueError(f"Unsupported provider: {provider}")
+        return {
+            "mode": "code_and_configuration_check",
+            "live_credentials_checked": False,
+            "message": "Diagnostics validate local OAuth configuration and storage state. They do not prove live provider credentials work.",
+            "providers": [self._oauth_diagnostics_for(platform) for platform in requested],
         }
 
     def dashboard_oauth_return_url(self, provider: str, payload: dict[str, Any] | None = None, error: str | None = None) -> str:
@@ -244,6 +301,52 @@ class HostedConnectionService:
         if not setting_name:
             return f"/oauth/{provider}/callback"
         return str(getattr(self._settings, setting_name))
+
+    def _oauth_diagnostics_for(self, platform: PlatformDescriptor) -> dict[str, Any]:
+        service = self._oauth_service(platform.provider)
+        required = OAUTH_REQUIRED_ENV.get(platform.provider, ())
+        optional = OAUTH_OPTIONAL_ENV.get(platform.provider, ())
+        missing_required = [name for name in required if not str(getattr(self._settings, ENV_TO_SETTING[name], "") or "").strip()]
+        configured_optional = [name for name in optional if str(getattr(self._settings, ENV_TO_SETTING[name], "") or "").strip()]
+        platform_status = self._platform_status(platform)
+        slug = OAUTH_PROVIDER_SLUGS[platform.provider]
+        return {
+            "provider": platform.provider,
+            "label": platform.label,
+            "status": "configured" if service and service.configured() else "missing_env",
+            "missing_required_env": missing_required,
+            "configured_optional_env": configured_optional,
+            "redirect_url": _join_url(self._public_base_url(), self._oauth_redirect_path(platform.provider)),
+            "start_endpoint": f"/api/hosted/oauth/{slug}/start",
+            "authorize_url_endpoint": f"/api/hosted/oauth/{slug}/authorize-url",
+            "callback_endpoint": self._oauth_redirect_path(platform.provider),
+            "pending_endpoint": f"/api/hosted/oauth/{slug}/pending?pending_id=<pending-id>",
+            "select_endpoint": f"/api/hosted/oauth/{slug}/select",
+            "connected_account_count": len(platform_status.get("accounts", [])),
+            "pending_selection_count": len(platform_status.get("pending_selections", [])),
+            "notes": self._oauth_provider_notes(platform.provider),
+        }
+
+    def _oauth_provider_notes(self, provider: str) -> list[str]:
+        notes = {
+            "meta_ads": [
+                "Callback exchanges code for a user token, attempts long-lived token exchange, then reads /me/adaccounts.",
+                "Meta ad accounts are saved only after dashboard account selection.",
+            ],
+            "google_ads": [
+                "Google OAuth must return a refresh_token; reconnect with consent prompt if it is absent.",
+                "customers:listAccessibleCustomers is used first; manager customer_client discovery is attempted best-effort.",
+            ],
+            "tiktok_ads": [
+                "TikTok Business API OAuth endpoints are configurable because app/API versions can differ.",
+                "Callback accepts auth_code and code; advertiser discovery reads token payload or advertiser/get.",
+            ],
+            "yandex_direct": [
+                "Yandex OAuth uses direct:api scope.",
+                "Clients.get is attempted for accessible logins; configured direct client login is used only as fallback.",
+            ],
+        }
+        return notes.get(provider, [])
 
     def _oauth_service(self, provider: str):
         services = {

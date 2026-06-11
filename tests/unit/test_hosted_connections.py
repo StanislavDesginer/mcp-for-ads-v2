@@ -81,6 +81,44 @@ def test_dashboard_oauth_return_url_points_to_connections(tmp_path: Path) -> Non
     assert error == "/?section=connections&provider=google_ads&status=error&oauth_error=OAuth+failed"
 
 
+def test_oauth_diagnostics_reports_missing_env_without_secrets(tmp_path: Path) -> None:
+    settings = Settings(project_root=tmp_path, public_base_url="https://mcp.adforge.dev")
+    service = HostedConnectionService(settings)
+
+    payload = service.oauth_diagnostics("google_ads")
+    google = payload["providers"][0]
+
+    assert payload["live_credentials_checked"] is False
+    assert google["status"] == "missing_env"
+    assert google["missing_required_env"] == [
+        "AD_MCP_GOOGLE_OAUTH_CLIENT_ID",
+        "AD_MCP_GOOGLE_OAUTH_CLIENT_SECRET",
+        "AD_MCP_GOOGLE_ADS_DEVELOPER_TOKEN",
+    ]
+    assert google["redirect_url"] == "https://mcp.adforge.dev/oauth/google/callback"
+
+
+def test_oauth_diagnostics_marks_configured_provider(tmp_path: Path) -> None:
+    settings = Settings(
+        project_root=tmp_path,
+        public_base_url="https://mcp.adforge.dev",
+        google_oauth_client_id="client-id",
+        google_oauth_client_secret="client-secret",
+        google_ads_developer_token="developer-token",
+        google_ads_login_customer_id="1234567890",
+    )
+    service = HostedConnectionService(settings)
+
+    payload = service.oauth_diagnostics("google_ads")
+    google = payload["providers"][0]
+
+    assert google["status"] == "configured"
+    assert google["missing_required_env"] == []
+    assert "client-secret" not in str(payload)
+    assert "developer-token" not in str(payload)
+    assert "AD_MCP_GOOGLE_ADS_LOGIN_CUSTOMER_ID" in google["configured_optional_env"]
+
+
 def test_import_local_provider_writes_hosted_store_without_exposing_secrets(tmp_path: Path) -> None:
     config = tmp_path / "ads_config.yaml"
     config.write_text(

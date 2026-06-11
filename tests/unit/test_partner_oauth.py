@@ -28,12 +28,50 @@ class _FakePartnerHTTP:
         if url == "https://oauth2.googleapis.com/token":
             assert data and data["code"] == "google-code"
             return _FakeResponse({"access_token": "google-access", "refresh_token": "google-refresh"})
+        if url.endswith("/googleAds:searchStream"):
+            assert json and "customer_client" in json["query"]
+            return _FakeResponse(
+                [
+                    {
+                        "results": [
+                            {
+                                "customerClient": {
+                                    "clientCustomer": "customers/5555555555",
+                                    "descriptiveName": "Child Google Client",
+                                    "id": "5555555555",
+                                    "manager": False,
+                                    "level": 1,
+                                    "status": "ENABLED",
+                                    "currencyCode": "USD",
+                                    "timeZone": "UTC",
+                                }
+                            }
+                        ]
+                    }
+                ]
+            )
         if url == "https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/":
             assert json and json["auth_code"] == "tiktok-code"
             return _FakeResponse({"data": {"access_token": "tiktok-access", "refresh_token": "tiktok-refresh"}})
         if url == "https://oauth.yandex.ru/token":
             assert data and data["code"] == "yandex-code"
             return _FakeResponse({"access_token": "yandex-access", "refresh_token": "yandex-refresh"})
+        if url == "https://api.direct.yandex.com/json/v5/clients":
+            assert headers and headers["Authorization"] == "Bearer yandex-access"
+            return _FakeResponse(
+                {
+                    "result": {
+                        "Clients": [
+                            {
+                                "Login": "client-from-api",
+                                "ClientInfo": "Yandex API Client",
+                                "Currency": "KZT",
+                                "Archived": "NO",
+                            }
+                        ]
+                    }
+                }
+            )
         raise AssertionError(f"Unexpected POST: {url} {data} {json}")
 
     def get(self, url: str, params: dict | None = None, headers: dict | None = None) -> _FakeResponse:
@@ -44,7 +82,7 @@ class _FakePartnerHTTP:
             return _FakeResponse({"resourceNames": ["customers/1234567890", "customers/9876543210"]})
         if url == "https://business-api.tiktok.com/open_api/v1.3/oauth2/advertiser/get/":
             assert headers and headers["Access-Token"] == "tiktok-access"
-            return _FakeResponse({"data": {"advertiser_ids": ["7444458786967928833"]}})
+            return _FakeResponse({"data": {"list": [{"advertiser_id": "7444458786967928833", "advertiser_name": "TikTok API Advertiser"}]}})
         raise AssertionError(f"Unexpected GET: {url} {params}")
 
 
@@ -80,8 +118,9 @@ def test_google_oauth_discovers_customers_and_select_saves_credentials(tmp_path)
     selected = service.select_accounts(pending["pending_id"], ["1234567890"])
     stored = service._store.provider_config("google_ads")  # noqa: SLF001
 
-    assert pending["account_count"] == 2
+    assert pending["account_count"] == 3
     assert pending["accounts"][0]["customer_id"] == "1234567890"
+    assert any(account["customer_id"] == "5555555555" for account in pending["accounts"])
     assert "google-refresh" not in str(pending)
     assert selected["status"] == "connected"
     assert selected["accounts"][0]["account_id"] == "1234567890"
@@ -102,6 +141,7 @@ def test_tiktok_oauth_discovers_advertiser_and_select_saves_credentials(tmp_path
 
     assert pending["account_count"] == 1
     assert pending["accounts"][0]["advertiser_id"] == "7444458786967928833"
+    assert pending["accounts"][0]["name"] == "TikTok API Advertiser"
     assert "tiktok-access" not in str(selected)
     assert selected["accounts"][0]["app_id"] == "tiktok-app-id"
     assert stored["accounts"][0]["access_token"] == "tiktok-access"
@@ -117,13 +157,14 @@ def test_yandex_oauth_uses_configured_direct_client_login(tmp_path) -> None:
     assert query["redirect_uri"] == ["https://mcp.adforge.dev/oauth/yandex/callback"]
     assert query["scope"] == ["direct:api"]
     pending = service.handle_callback({"code": "yandex-code", "state": query["state"][0]})
-    selected = service.select_accounts(pending["pending_id"], ["client-login"])
+    selected = service.select_accounts(pending["pending_id"], ["client-from-api"])
     stored = service._store.provider_config("yandex_direct")  # noqa: SLF001
 
     assert pending["account_count"] == 1
-    assert pending["accounts"][0]["direct_client_login"] == "client-login"
+    assert pending["accounts"][0]["direct_client_login"] == "client-from-api"
     assert "yandex-access" not in str(selected)
-    assert selected["accounts"][0]["account_id"] == "client-login"
+    assert selected["accounts"][0]["account_id"] == "client-from-api"
+    assert selected["accounts"][0]["currency"] == "KZT"
     assert stored["accounts"][0]["access_token"] == "yandex-access"
     assert stored["accounts"][0]["oauth_client_secret"] == "yandex-client-secret"
 

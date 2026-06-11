@@ -46,6 +46,18 @@ Callback:
 - сохраняет discovery как pending selection в `tokens/connections.json`;
 - возвращает `pending_id` и safe список аккаунтов.
 
+По умолчанию callback возвращает пользователя в dashboard:
+
+```text
+/?section=connections&provider=meta_ads&status=pending_account_selection&pending_id=<pending-id>
+```
+
+Для технической JSON-проверки можно добавить `response=json`:
+
+```http
+GET /oauth/meta/callback?code=...&state=...&response=json
+```
+
 ### Pending
 
 ```http
@@ -54,6 +66,15 @@ Authorization: Bearer <beta-token>
 ```
 
 Возвращает safe список найденных аккаунтов без токенов.
+
+### Diagnostics
+
+```http
+GET /api/hosted/oauth/meta/diagnostics
+Authorization: Bearer <beta-token>
+```
+
+Diagnostics проверяет только локальную конфигурацию и storage status. Это не live-проверка реальных Meta credentials.
 
 ### Select
 

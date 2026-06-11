@@ -192,26 +192,36 @@ class AdsWebHandler(BaseHTTPRequestHandler):
                 return self._send_json(self.hosted.mcp_connection_info())
             if route == "/api/hosted/connections":
                 return self._send_json(self.hosted.connections())
+            if route == "/api/hosted/oauth/diagnostics":
+                return self._send_json(self.hosted.oauth_diagnostics())
             if route == "/api/hosted/oauth/meta/start":
                 return self._redirect(self.hosted.meta_oauth_redirect_url())
+            if route == "/api/hosted/oauth/meta/diagnostics":
+                return self._send_json(self.hosted.oauth_diagnostics("meta_ads"))
             if route == "/api/hosted/oauth/meta/authorize-url":
                 return self._send_json(self.hosted.oauth_authorization_info("meta_ads"))
             if route == "/api/hosted/oauth/meta/pending":
                 return self._send_json(self.hosted.meta_oauth_pending(str(query["pending_id"])))
             if route == "/api/hosted/oauth/google/start":
                 return self._redirect(self.hosted.oauth_redirect_url("google_ads"))
+            if route == "/api/hosted/oauth/google/diagnostics":
+                return self._send_json(self.hosted.oauth_diagnostics("google_ads"))
             if route == "/api/hosted/oauth/google/authorize-url":
                 return self._send_json(self.hosted.oauth_authorization_info("google_ads"))
             if route == "/api/hosted/oauth/google/pending":
                 return self._send_json(self.hosted.oauth_pending("google_ads", str(query["pending_id"])))
             if route == "/api/hosted/oauth/tiktok/start":
                 return self._redirect(self.hosted.oauth_redirect_url("tiktok_ads"))
+            if route == "/api/hosted/oauth/tiktok/diagnostics":
+                return self._send_json(self.hosted.oauth_diagnostics("tiktok_ads"))
             if route == "/api/hosted/oauth/tiktok/authorize-url":
                 return self._send_json(self.hosted.oauth_authorization_info("tiktok_ads"))
             if route == "/api/hosted/oauth/tiktok/pending":
                 return self._send_json(self.hosted.oauth_pending("tiktok_ads", str(query["pending_id"])))
             if route == "/api/hosted/oauth/yandex/start":
                 return self._redirect(self.hosted.oauth_redirect_url("yandex_direct"))
+            if route == "/api/hosted/oauth/yandex/diagnostics":
+                return self._send_json(self.hosted.oauth_diagnostics("yandex_direct"))
             if route == "/api/hosted/oauth/yandex/authorize-url":
                 return self._send_json(self.hosted.oauth_authorization_info("yandex_direct"))
             if route == "/api/hosted/oauth/yandex/pending":

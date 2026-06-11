@@ -29,6 +29,10 @@ SAFE_ACCOUNT_KEYS = (
     "account_id",
     "customer_id",
     "login_customer_id",
+    "manager_customer_id",
+    "google_ads_account_type",
+    "google_ads_level",
+    "google_ads_status",
     "advertiser_id",
     "login",
     "agency_login",
@@ -39,6 +43,8 @@ SAFE_ACCOUNT_KEYS = (
     "api_access_status",
     "api_points",
     "scope",
+    "currency",
+    "timezone_name",
     "status",
 )
 
