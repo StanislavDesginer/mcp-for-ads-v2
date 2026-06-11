@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from ad_mcp.core.connection_store import HostedConnectionStore, load_runtime_provider_configs
@@ -156,3 +157,52 @@ def test_safe_account_summary_keeps_provider_metadata_without_secrets(tmp_path: 
     assert yandex["api_points"] == "32000"
     assert "tiktok-secret" not in serialized
     assert "yandex-token" not in serialized
+
+
+def test_pending_selections_are_safe_and_disconnect_clears_provider(tmp_path: Path) -> None:
+    store = HostedConnectionStore(tmp_path / "tokens" / "connections.json")
+    pending = store.save_oauth_pending(
+        "google_ads",
+        [{"name": "Google Client", "customer_id": "1234567890"}],
+        credentials={
+            "access_token": "access-token",
+            "refresh_token": "refresh-token",
+            "developer_token": "developer-token",
+        },
+    )
+    store.save_provider_config(
+        "google_ads",
+        {"provider": "google_ads", "accounts": [{"name": "Google Client", "customer_id": "1234567890", "refresh_token": "refresh-token"}]},
+    )
+
+    pending_status = store.pending_selections("google_ads")
+    serialized_pending = json.dumps(pending_status)
+    disconnected = store.disconnect_provider("google_ads")
+
+    assert pending_status[0]["pending_id"] == pending["pending_id"]
+    assert pending_status[0]["status"] == "pending_account_selection"
+    assert pending_status[0]["accounts"][0]["customer_id"] == "1234567890"
+    assert "access-token" not in serialized_pending
+    assert "refresh-token" not in serialized_pending
+    assert "developer-token" not in serialized_pending
+    assert disconnected["accounts"] == []
+    assert store.provider_config("google_ads")["accounts"] == []
+    assert store.pending_selections("google_ads") == []
+
+
+def test_pending_selections_mark_expired_records(tmp_path: Path) -> None:
+    store = HostedConnectionStore(tmp_path / "tokens" / "connections.json")
+    pending = store.save_oauth_pending(
+        "meta_ads",
+        [{"name": "Meta Client", "account_id": "act_123"}],
+        credentials={"access_token": "access-token"},
+    )
+    data = store.read()
+    data["oauth_pending"]["meta_ads"][pending["pending_id"]]["expires_at"] = (
+        datetime.now(timezone.utc) - timedelta(seconds=30)
+    ).isoformat()
+    store._write(data)  # noqa: SLF001
+
+    pending_status = store.pending_selections("meta_ads")
+
+    assert pending_status[0]["status"] == "expired"

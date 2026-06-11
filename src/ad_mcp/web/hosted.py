@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlencode
 
 from ad_mcp.core.config_loader import load_provider_from_connections
 from ad_mcp.core.connection_store import HostedConnectionStore, safe_account_summary
@@ -90,6 +91,17 @@ class HostedConnectionService:
             "platforms": platforms,
         }
 
+    def dashboard_oauth_return_url(self, provider: str, payload: dict[str, Any] | None = None, error: str | None = None) -> str:
+        query: dict[str, str] = {"section": "connections", "provider": provider}
+        if error:
+            query["status"] = "error"
+            query["oauth_error"] = error
+        elif payload:
+            query["status"] = str(payload.get("status") or "pending_account_selection")
+            if payload.get("pending_id"):
+                query["pending_id"] = str(payload["pending_id"])
+        return f"/?{urlencode(query)}"
+
     def import_local_provider(self, provider: str) -> dict[str, Any]:
         if provider not in {platform.provider for platform in PLATFORMS}:
             return {"provider": provider, "status": "unsupported_provider"}
@@ -169,6 +181,12 @@ class HostedConnectionService:
         account_ids = payload.get("account_ids") or []
         return service.select_accounts(pending_id, [str(item) for item in account_ids])
 
+    def disconnect_provider(self, provider: str) -> dict[str, Any]:
+        if provider not in {platform.provider for platform in PLATFORMS}:
+            raise ValueError(f"Unsupported provider: {provider}")
+        disconnected = self._store.disconnect_provider(provider)
+        return {"provider": provider, "status": "disconnected", "accounts": disconnected["accounts"]}
+
     def mcp_transport_placeholder(self) -> dict[str, Any]:
         info = self.mcp_connection_info()
         return {
@@ -184,28 +202,41 @@ class HostedConnectionService:
         accounts = provider_config.get("accounts", [])
         safe_accounts = [safe_account_summary(account) for account in hosted_accounts if isinstance(account, dict)]
         local_safe_accounts = [safe_account_summary(account) for account in accounts if isinstance(account, dict)]
+        pending_selections = self._store.pending_selections(platform.provider)
+        active_pending = [item for item in pending_selections if item.get("status") == "pending_account_selection"]
+        expired_pending = [item for item in pending_selections if item.get("status") == "expired"]
         has_oauth_connection = bool(hosted_accounts)
         if has_oauth_connection:
             status = "connected"
+            source = "hosted_connection_store"
+        elif active_pending:
+            status = "pending_account_selection"
+            source = "hosted_connection_store"
+        elif expired_pending:
+            status = "expired/reconnect_required"
             source = "hosted_connection_store"
         elif local_safe_accounts and self._settings.connections_fallback_to_local:
             status = "development_configured"
             source = "local_connections_config"
             safe_accounts = local_safe_accounts
         elif platform.oauth_target:
-            status = "ready_for_oauth"
+            status = "not_connected"
             source = "none"
         else:
             status = "planned_later"
             source = "none"
+        oauth_preview = self.oauth_start_preview(platform.provider)
         return {
             "provider": platform.provider,
             "label": platform.label,
             "beta_priority": platform.beta_priority,
             "oauth_target": platform.oauth_target,
+            "oauth_configured": oauth_preview.get("status") == "oauth_ready",
+            "oauth_redirect_url": oauth_preview.get("redirect_url"),
             "status": status,
             "source": source,
             "accounts": safe_accounts,
+            "pending_selections": pending_selections,
         }
 
     def _oauth_redirect_path(self, provider: str) -> str:

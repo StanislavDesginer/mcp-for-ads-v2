@@ -231,6 +231,11 @@ button:focus-visible {
   white-space: nowrap;
 }
 
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .btn--primary {
   background: var(--accent);
   color: #fff;
@@ -426,6 +431,11 @@ button:focus-visible {
   gap: 8px;
 }
 
+.connection-platform__hint {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .connection-account {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -445,6 +455,72 @@ button:focus-visible {
 
 .connection-platform__button {
   justify-self: start;
+}
+
+.connection-platform__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.connection-callout {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.connection-callout--warning {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.pending-selection {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+
+.pending-selection__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.pending-account-form,
+.pending-account-list {
+  display: grid;
+  gap: 10px;
+}
+
+.pending-account-option {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  background: var(--surface-alt);
+}
+
+.pending-account-option input {
+  margin-top: 2px;
+}
+
+.pending-account-option span {
+  display: grid;
+  gap: 3px;
+}
+
+.pending-account-option small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .overview-hero {
@@ -728,6 +804,18 @@ tbody tr:hover {
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   color: #1d4ed8;
+}
+
+.notice-state--success {
+  background: #ecfdf3;
+  border: 1px solid #abefc6;
+  color: #067647;
+}
+
+.notice-state--error {
+  background: var(--danger-soft);
+  border: 1px solid #f9c3be;
+  color: #7a271a;
 }
 
 .diag-health-card {

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from ad_mcp.core.connection_store import HostedConnectionStore
 from ad_mcp.settings import Settings
 from ad_mcp.web.hosted import HostedConnectionService
 
@@ -68,6 +70,17 @@ def test_oauth_start_preview_marks_beta_platform_as_not_configured(tmp_path: Pat
     assert payload["redirect_url"] == "https://mcp.adforge.dev/oauth/meta/callback"
 
 
+def test_dashboard_oauth_return_url_points_to_connections(tmp_path: Path) -> None:
+    settings = Settings(project_root=tmp_path, public_base_url="https://mcp.adforge.dev")
+    service = HostedConnectionService(settings)
+
+    success = service.dashboard_oauth_return_url("google_ads", {"status": "pending_account_selection", "pending_id": "abc123"})
+    error = service.dashboard_oauth_return_url("google_ads", error="OAuth failed")
+
+    assert success == "/?section=connections&provider=google_ads&status=pending_account_selection&pending_id=abc123"
+    assert error == "/?section=connections&provider=google_ads&status=error&oauth_error=OAuth+failed"
+
+
 def test_import_local_provider_writes_hosted_store_without_exposing_secrets(tmp_path: Path) -> None:
     config = tmp_path / "ads_config.yaml"
     config.write_text(
@@ -118,3 +131,50 @@ providers:
 
     assert payload["status"] == "no_local_config"
     assert not settings.connection_store_file.exists()
+
+
+def test_connections_response_exposes_pending_and_disconnects_provider(tmp_path: Path) -> None:
+    settings = Settings(project_root=tmp_path, connections_config="missing.yaml", connection_store_path="tokens/connections.json")
+    store = HostedConnectionStore(settings.connection_store_file)
+    pending = store.save_oauth_pending(
+        "google_ads",
+        [{"name": "Google Client", "customer_id": "1234567890"}],
+        credentials={"refresh_token": "refresh-token"},
+    )
+    service = HostedConnectionService(settings)
+
+    payload = service.connections()
+    google = next(platform for platform in payload["platforms"] if platform["provider"] == "google_ads")
+    disconnected = service.disconnect_provider("google_ads")
+    after_disconnect = service.connections()
+    google_after = next(platform for platform in after_disconnect["platforms"] if platform["provider"] == "google_ads")
+
+    assert google["status"] == "pending_account_selection"
+    assert google["pending_selections"][0]["pending_id"] == pending["pending_id"]
+    assert "refresh-token" not in str(google)
+    assert disconnected["status"] == "disconnected"
+    assert google_after["status"] == "not_connected"
+    assert google_after["pending_selections"] == []
+
+
+def test_connections_response_marks_expired_pending_selection(tmp_path: Path) -> None:
+    settings = Settings(project_root=tmp_path, connections_config="missing.yaml", connection_store_path="tokens/connections.json")
+    store = HostedConnectionStore(settings.connection_store_file)
+    pending = store.save_oauth_pending(
+        "meta_ads",
+        [{"name": "Meta Client", "account_id": "act_123"}],
+        credentials={"access_token": "access-token"},
+    )
+    data = store.read()
+    data["oauth_pending"]["meta_ads"][pending["pending_id"]]["expires_at"] = (
+        datetime.now(timezone.utc) - timedelta(seconds=30)
+    ).isoformat()
+    store._write(data)  # noqa: SLF001
+    service = HostedConnectionService(settings)
+
+    payload = service.connections()
+    meta = next(platform for platform in payload["platforms"] if platform["provider"] == "meta_ads")
+
+    assert meta["status"] == "expired/reconnect_required"
+    assert meta["pending_selections"][0]["status"] == "expired"
+    assert "access-token" not in str(meta)

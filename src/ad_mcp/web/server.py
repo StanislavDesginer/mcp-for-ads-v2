@@ -129,6 +129,19 @@ class AdsWebHandler(BaseHTTPRequestHandler):
         )
         return
 
+    def _oauth_callback_response(self, provider: str, callback) -> None:
+        query = self._query()
+        wants_json = query.get("response") == "json"
+        try:
+            payload = callback(query)
+        except (AdMCPError, ValueError, KeyError, json.JSONDecodeError, RuntimeError) as exc:
+            if wants_json:
+                raise
+            return self._redirect(self.hosted.dashboard_oauth_return_url(provider, error=self._client_error_message(exc)))
+        if wants_json:
+            return self._send_json(payload)
+        return self._redirect(self.hosted.dashboard_oauth_return_url(provider, payload=payload))
+
     def _query(self) -> dict[str, str]:
         parsed = urlparse(self.path)
         return {key: values[-1] for key, values in parse_qs(parsed.query).items() if values}
@@ -157,13 +170,13 @@ class AdsWebHandler(BaseHTTPRequestHandler):
             if route == "/assets/app.js":
                 return self._send_file(STATIC_ROOT / "app.js", "application/javascript; charset=utf-8")
             if route == self.settings.meta_oauth_redirect_path:
-                return self._send_json(self.hosted.meta_oauth_callback(self._query()))
+                return self._oauth_callback_response("meta_ads", self.hosted.meta_oauth_callback)
             if route == self.settings.google_oauth_redirect_path:
-                return self._send_json(self.hosted.oauth_callback("google_ads", self._query()))
+                return self._oauth_callback_response("google_ads", lambda query: self.hosted.oauth_callback("google_ads", query))
             if route == self.settings.tiktok_oauth_redirect_path:
-                return self._send_json(self.hosted.oauth_callback("tiktok_ads", self._query()))
+                return self._oauth_callback_response("tiktok_ads", lambda query: self.hosted.oauth_callback("tiktok_ads", query))
             if route == self.settings.yandex_oauth_redirect_path:
-                return self._send_json(self.hosted.oauth_callback("yandex_direct", self._query()))
+                return self._oauth_callback_response("yandex_direct", lambda query: self.hosted.oauth_callback("yandex_direct", query))
 
             if not self._ensure_api_authorized(route):
                 return
@@ -300,6 +313,8 @@ class AdsWebHandler(BaseHTTPRequestHandler):
             payload = self._json_body()
             if route == "/api/hosted/connections/import-local":
                 return self._send_json(self.hosted.import_local_provider(str(payload["provider"])))
+            if route == "/api/hosted/connections/disconnect":
+                return self._send_json(self.hosted.disconnect_provider(str(payload["provider"])))
             if route == "/api/hosted/oauth/meta/select":
                 return self._send_json(self.hosted.meta_oauth_select(payload))
             if route == "/api/hosted/oauth/google/select":

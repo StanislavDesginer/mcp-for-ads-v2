@@ -9,6 +9,8 @@
     selectedSkill: null,
     diagnosticsLoaded: false,
     connectionsLoaded: false,
+    activePendingSelection: null,
+    connectionNotice: null,
     currentSection: "skills",
   };
 
@@ -80,6 +82,9 @@
     dataContract: () => requestJson("/api/meta/data-contract"),
     hostedConnections: () => requestJson("/api/hosted/connections"),
     oauthAuthorizeUrl: (providerSlug) => requestJson(`/api/hosted/oauth/${providerSlug}/authorize-url`),
+    oauthPending: (providerSlug, pendingId) => requestJson(`/api/hosted/oauth/${providerSlug}/pending?pending_id=${encodeURIComponent(pendingId)}`),
+    oauthSelect: (providerSlug, payload) => requestJson(`/api/hosted/oauth/${providerSlug}/select`, "POST", payload),
+    disconnectProvider: (provider) => requestJson("/api/hosted/connections/disconnect", "POST", { provider }),
     budgetSkill: (params) => requestJson(`/api/meta/skills/budget-summary${withQuery(params)}`),
     disableSkill: (params) => requestJson(`/api/meta/skills/disable-candidates${withQuery(params)}`),
     scaleSkill: (params) => requestJson(`/api/meta/skills/scale-candidates${withQuery(params)}`),
@@ -91,6 +96,7 @@
 
   function init() {
     el.filterEndDate.value = state.endDate;
+    hydrateConnectionStateFromUrl();
     bindNavigation();
     bindTopbar();
     bindSectionRefreshers();
@@ -98,8 +104,11 @@
     bindDrawer();
     bindPreviewForms();
     bindActionTabs();
-    setActiveSection("skills");
+    setActiveSection(initialSectionFromUrl());
     refreshAll();
+    if (state.currentSection === "connections") {
+      loadConnections(true);
+    }
   }
 
   function bindNavigation() {
@@ -359,6 +368,7 @@
     renderLoading(el.connectionsContent, "Loading hosted connections…");
     try {
       const payload = await api.hostedConnections();
+      await loadPendingSelectionFromUrl();
       renderConnections(payload);
       state.connectionsLoaded = true;
     } catch (error) {
@@ -370,6 +380,29 @@
     }
   }
 
+  async function loadPendingSelectionFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const provider = params.get("provider") || "";
+    const pendingId = params.get("pending_id") || "";
+    if (!provider || !pendingId || state.activePendingSelection?.pending_id === pendingId) {
+      return;
+    }
+    const providerSlug = oauthSlug(provider);
+    if (!providerSlug) {
+      return;
+    }
+    try {
+      state.activePendingSelection = await api.oauthPending(providerSlug, pendingId);
+      state.connectionNotice = {
+        tone: "info",
+        text: "OAuth completed. Select the ad accounts that AdForge MCP can use.",
+      };
+    } catch (error) {
+      state.activePendingSelection = null;
+      state.connectionNotice = { tone: "error", text: humanizeError(error) };
+    }
+  }
+
   async function startOAuth(provider, button) {
     const providerSlug = oauthSlug(provider);
     if (!providerSlug) {
@@ -378,6 +411,7 @@
     }
     button.disabled = true;
     button.classList.add("is-loading");
+    button.textContent = "Connecting…";
     try {
       const payload = await api.oauthAuthorizeUrl(providerSlug);
       if (!payload.authorization_url) {
@@ -387,7 +421,80 @@
     } catch (error) {
       button.disabled = false;
       button.classList.remove("is-loading");
+      button.textContent = provider ? "Connect" : button.textContent;
+      state.connectionNotice = { tone: "error", text: humanizeError(error) };
+      loadConnections(true);
       toast(humanizeError(error), "error");
+    }
+  }
+
+  async function loadPendingSelection(provider, pendingId, button) {
+    const providerSlug = oauthSlug(provider);
+    if (!providerSlug || !pendingId) return;
+    if (button) {
+      button.disabled = true;
+      button.classList.add("is-loading");
+    }
+    try {
+      state.activePendingSelection = await api.oauthPending(providerSlug, pendingId);
+      state.connectionNotice = { tone: "info", text: "Choose one or more accounts and save the connection." };
+      renderConnections(await api.hostedConnections());
+    } catch (error) {
+      state.connectionNotice = { tone: "error", text: humanizeError(error) };
+      renderConnections(await api.hostedConnections());
+    }
+  }
+
+  async function savePendingSelection(provider, form, button) {
+    const providerSlug = oauthSlug(provider);
+    if (!providerSlug || !state.activePendingSelection) return;
+    const accountIds = Array.from(form.querySelectorAll("input[name='account_id']:checked")).map((item) => item.value);
+    if (!accountIds.length) {
+      toast("Select at least one account.", "info");
+      return;
+    }
+    if (button) {
+      button.disabled = true;
+      button.classList.add("is-loading");
+    }
+    try {
+      await api.oauthSelect(providerSlug, {
+        pending_id: state.activePendingSelection.pending_id,
+        account_ids: accountIds,
+      });
+      state.activePendingSelection = null;
+      state.connectionNotice = { tone: "success", text: "Accounts connected. MCP tools can now use this provider." };
+      clearOAuthQueryParams();
+      await loadConnections(true);
+      toast("Connection saved.", "success");
+    } catch (error) {
+      if (button) {
+        button.disabled = false;
+        button.classList.remove("is-loading");
+      }
+      state.connectionNotice = { tone: "error", text: humanizeError(error) };
+      renderConnections(await api.hostedConnections());
+    }
+  }
+
+  async function disconnectProvider(provider, button) {
+    if (!window.confirm("Disconnect this provider and remove saved OAuth tokens from the hosted connection store?")) {
+      return;
+    }
+    button.disabled = true;
+    button.classList.add("is-loading");
+    try {
+      await api.disconnectProvider(provider);
+      if (state.activePendingSelection?.provider === provider) {
+        state.activePendingSelection = null;
+      }
+      state.connectionNotice = { tone: "success", text: "Provider disconnected." };
+      await loadConnections(true);
+    } catch (error) {
+      button.disabled = false;
+      button.classList.remove("is-loading");
+      state.connectionNotice = { tone: "error", text: humanizeError(error) };
+      renderConnections(await api.hostedConnections());
     }
   }
 
@@ -460,15 +567,18 @@
     const platforms = payload.platforms || [];
     const mcp = payload.mcp || {};
     const store = payload.connection_store || {};
+    const activePending = state.activePendingSelection;
     const platformMarkup = platforms.length
       ? platforms.map((platform) => renderConnectionPlatform(platform)).join("")
       : renderEmptyMarkup("No platforms were returned.");
     el.connectionsContent.innerHTML = `
       <div class="connections-layout">
+        ${renderConnectionNotice()}
         <article class="panel-card connection-summary">
           <div>
             <p class="section-kicker">Hosted MCP</p>
             <h4>${esc(mcp.name || "AdForge MCP")}</h4>
+            <p>Connect ad accounts here, then use the hosted MCP URL in Codex, Claude, or another MCP client.</p>
           </div>
           <div class="kv-grid">
             ${renderKv("Transport", mcp.transport || "streamable_http")}
@@ -476,37 +586,141 @@
             ${renderKv("Store", store.configured ? "configured" : "not created yet")}
           </div>
         </article>
+        ${activePending ? renderPendingSelection(activePending) : ""}
         <div class="connection-platforms">${platformMarkup}</div>
       </div>
     `;
     el.connectionsContent.querySelectorAll("[data-oauth-provider]").forEach((button) => {
       button.addEventListener("click", () => startOAuth(button.dataset.oauthProvider, button));
     });
+    el.connectionsContent.querySelectorAll("[data-pending-provider]").forEach((button) => {
+      button.addEventListener("click", () => loadPendingSelection(button.dataset.pendingProvider, button.dataset.pendingId, button));
+    });
+    el.connectionsContent.querySelectorAll("[data-disconnect-provider]").forEach((button) => {
+      button.addEventListener("click", () => disconnectProvider(button.dataset.disconnectProvider, button));
+    });
+    el.connectionsContent.querySelectorAll("[data-pending-form]").forEach((form) => {
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        savePendingSelection(form.dataset.pendingForm, form, event.submitter);
+      });
+    });
   }
 
   function renderConnectionPlatform(platform) {
     const accounts = platform.accounts || [];
+    const pending = platform.pending_selections || [];
+    const activePending = pending.find((item) => item.status === "pending_account_selection");
+    const expiredPending = pending.find((item) => item.status === "expired");
     const oauthAvailable = Boolean(platform.oauth_target && oauthSlug(platform.provider));
-    const disabled = !oauthAvailable ? "disabled" : "";
+    const canStartOAuth = oauthAvailable && platform.oauth_configured;
+    const connectDisabled = !canStartOAuth ? "disabled" : "";
     const buttonText = platform.status === "connected" ? "Reconnect" : "Connect";
+    const status = connectionDisplayStatus(platform);
     return `
       <article class="panel-card connection-platform">
         <header class="connection-platform__header">
           <div>
             <h4>${esc(platform.label || platform.provider)}</h4>
-            <p>${esc(platform.provider)} · ${esc(platform.source || "none")}</p>
+            <p>${esc(connectionSubtitle(platform))}</p>
           </div>
-          <span class="status-chip ${statusClass(platform.status)}">${esc(platform.status || "unknown")}</span>
+          <span class="status-chip ${statusClass(status)}">${esc(connectionStatusLabel(status))}</span>
         </header>
+        <p class="connection-platform__hint">${esc(connectionHint(platform, status))}</p>
         <div class="connection-platform__accounts">
           ${
             accounts.length
-              ? accounts.map((account) => `<div class="connection-account">${esc(account.name || account.account_id || account.customer_id || "Account")}<span>${esc(account.account_id || account.customer_id || account.advertiser_id || account.direct_client_login || "")}</span></div>`).join("")
+              ? accounts.map((account) => renderConnectionAccount(account)).join("")
               : renderEmptyMarkup("No connected accounts yet.")
           }
         </div>
-        <button type="button" class="btn btn--primary connection-platform__button" data-oauth-provider="${escAttr(platform.provider)}" ${disabled}>${buttonText}</button>
+        ${activePending ? renderPendingCallout(platform, activePending) : ""}
+        ${expiredPending && !activePending ? renderExpiredCallout(expiredPending) : ""}
+        <footer class="connection-platform__actions">
+          <button type="button" class="btn btn--primary connection-platform__button" data-oauth-provider="${escAttr(platform.provider)}" ${connectDisabled}>${buttonText}</button>
+          ${
+            accounts.length
+              ? `<button type="button" class="btn btn--secondary" data-disconnect-provider="${escAttr(platform.provider)}">Disconnect</button>`
+              : ""
+          }
+        </footer>
       </article>
+    `;
+  }
+
+  function renderConnectionNotice() {
+    if (!state.connectionNotice?.text) return "";
+    return `<div class="notice-state notice-state--${escAttr(state.connectionNotice.tone || "info")}">${esc(state.connectionNotice.text)}</div>`;
+  }
+
+  function renderPendingSelection(pending) {
+    const accounts = pending.accounts || [];
+    return `
+      <article class="panel-card pending-selection">
+        <header class="pending-selection__header">
+          <div>
+            <p class="section-kicker">Account selection</p>
+            <h4>${esc(providerLabel(pending.provider))}</h4>
+          </div>
+          <span class="status-chip ${statusClass(pending.status)}">${esc(connectionStatusLabel(pending.status))}</span>
+        </header>
+        <p class="connection-platform__hint">Choose the ad accounts that should be available to MCP tools. Secrets stay in the hosted connection store and are not shown here.</p>
+        <form class="pending-account-form" data-pending-form="${escAttr(pending.provider)}">
+          <div class="pending-account-list">
+            ${
+              accounts.length
+                ? accounts.map((account) => renderPendingAccountOption(account)).join("")
+                : renderEmptyMarkup("No accounts were returned by OAuth.")
+            }
+          </div>
+          <footer class="connection-platform__actions">
+            <button type="submit" class="btn btn--primary" ${accounts.length ? "" : "disabled"}>Save selected accounts</button>
+            <button type="button" class="btn btn--secondary" data-oauth-provider="${escAttr(pending.provider)}">Reconnect</button>
+          </footer>
+        </form>
+      </article>
+    `;
+  }
+
+  function renderPendingAccountOption(account) {
+    const accountId = account.account_id || account.customer_id || account.advertiser_id || account.direct_client_login || "";
+    return `
+      <label class="pending-account-option">
+        <input type="checkbox" name="account_id" value="${escAttr(accountId)}" checked>
+        <span>
+          <strong>${esc(account.name || accountId || "Account")}</strong>
+          <small>${esc(accountId)}</small>
+        </span>
+      </label>
+    `;
+  }
+
+  function renderConnectionAccount(account) {
+    const accountId = account.account_id || account.customer_id || account.advertiser_id || account.direct_client_login || "";
+    return `
+      <div class="connection-account">
+        ${esc(account.name || accountId || "Account")}
+        <span>${esc(accountId)}</span>
+      </div>
+    `;
+  }
+
+  function renderPendingCallout(platform, pending) {
+    return `
+      <div class="connection-callout">
+        <strong>Account selection required</strong>
+        <span>${esc((pending.accounts || []).length)} account(s) discovered. Save the accounts to finish setup.</span>
+        <button type="button" class="btn btn--secondary" data-pending-provider="${escAttr(platform.provider)}" data-pending-id="${escAttr(pending.pending_id)}">Select accounts</button>
+      </div>
+    `;
+  }
+
+  function renderExpiredCallout(pending) {
+    return `
+      <div class="connection-callout connection-callout--warning">
+        <strong>OAuth session expired</strong>
+        <span>This pending selection expired. Reconnect the platform to continue.</span>
+      </div>
     `;
   }
 
@@ -1112,17 +1326,39 @@
   }
 
   function setActiveSection(section) {
-    state.currentSection = section;
+    const known = new Set(el.navButtons.map((button) => button.dataset.section));
+    state.currentSection = known.has(section) ? section : "skills";
     el.navButtons.forEach((button) => {
-      const active = button.dataset.section === section;
+      const active = button.dataset.section === state.currentSection;
       button.classList.toggle("is-active", active);
       button.setAttribute("aria-current", active ? "page" : "false");
     });
     el.panels.forEach((panel) => {
-      const active = panel.dataset.sectionPanel === section;
+      const active = panel.dataset.sectionPanel === state.currentSection;
       panel.classList.toggle("is-active", active);
       panel.hidden = !active;
     });
+  }
+
+  function hydrateConnectionStateFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const oauthError = params.get("oauth_error");
+    const status = params.get("status");
+    if (oauthError) {
+      state.connectionNotice = { tone: "error", text: oauthError };
+    } else if (status === "pending_account_selection") {
+      state.connectionNotice = { tone: "info", text: "OAuth completed. Select accounts to finish setup." };
+    }
+  }
+
+  function initialSectionFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("section") || "skills";
+  }
+
+  function clearOAuthQueryParams() {
+    const cleanUrl = `${window.location.pathname}?section=connections`;
+    window.history.replaceState({}, "", cleanUrl);
   }
 
   function setStatus(kind, text) {
@@ -1186,6 +1422,52 @@
         <strong>${esc(stringify(value))}</strong>
       </div>
     `;
+  }
+
+  function connectionDisplayStatus(platform) {
+    if (platform.status === "development_configured") return "connected";
+    if (platform.status === "expired/reconnect_required") return "expired/reconnect_required";
+    if (platform.pending_selections?.some((item) => item.status === "pending_account_selection")) {
+      return "pending_account_selection";
+    }
+    if (platform.status) return platform.status;
+    return "not_connected";
+  }
+
+  function connectionStatusLabel(status) {
+    return {
+      not_connected: "not connected",
+      connecting: "connecting",
+      pending_account_selection: "select accounts",
+      connected: "connected",
+      error: "error",
+      "expired/reconnect_required": "reconnect required",
+      expired: "expired",
+      development_configured: "connected",
+    }[status] || status || "unknown";
+  }
+
+  function connectionSubtitle(platform) {
+    const priority = platform.beta_priority ? `${platform.beta_priority} priority` : "provider";
+    return `${platform.provider} · ${platform.source || "none"} · ${priority}`;
+  }
+
+  function connectionHint(platform, status) {
+    if (status === "connected") return "Connected accounts are available to hosted MCP tools.";
+    if (status === "pending_account_selection") return "OAuth finished, but account selection is still required.";
+    if (status === "expired/reconnect_required" || status === "expired") return "The OAuth selection window expired. Reconnect this platform.";
+    if (!platform.oauth_configured) return "OAuth app credentials are not configured on the server yet.";
+    if (status === "error") return "The last OAuth attempt failed. Review the message and reconnect.";
+    return "Start OAuth to connect ad accounts through the hosted dashboard.";
+  }
+
+  function providerLabel(provider) {
+    return {
+      meta_ads: "Meta Ads",
+      google_ads: "Google Ads",
+      tiktok_ads: "TikTok Ads",
+      yandex_direct: "Yandex Direct",
+    }[provider] || provider;
   }
 
   function renderTable(rows, columns) {
@@ -1414,7 +1696,7 @@
   function statusClass(status) {
     const normalized = String(status || "").toUpperCase();
     if (["ACTIVE", "OK", "READY", "SUCCESS", "CONNECTED", "OAUTH_READY"].includes(normalized)) return "is-success";
-    if (["READY_FOR_OAUTH", "OAUTH_NOT_CONFIGURED", "PAUSED", "PENDING_REVIEW", "LEARNING", "LIMITED"].includes(normalized)) return "is-warning";
+    if (["READY_FOR_OAUTH", "OAUTH_NOT_CONFIGURED", "NOT_CONNECTED", "CONNECTING", "PENDING_ACCOUNT_SELECTION", "EXPIRED", "EXPIRED/RECONNECT_REQUIRED", "PAUSED", "PENDING_REVIEW", "LEARNING", "LIMITED"].includes(normalized)) return "is-warning";
     if (["DISAPPROVED", "ERROR", "FAILED", "REJECTED"].includes(normalized)) return "is-danger";
     return "is-neutral";
   }

@@ -145,6 +145,52 @@ class HostedConnectionStore:
             "accounts": [safe_account_summary(account) for account in config.get("accounts", [])],
         }
 
+    def pending_selections(self, provider: str) -> list[dict[str, Any]]:
+        data = self.read()
+        provider_pending = (
+            data.get("oauth_pending", {})
+            if isinstance(data.get("oauth_pending", {}), dict)
+            else {}
+        ).get(provider, {})
+        if not isinstance(provider_pending, dict):
+            return []
+        selections: list[dict[str, Any]] = []
+        for pending_id, pending in provider_pending.items():
+            if not isinstance(pending, dict):
+                continue
+            accounts = pending.get("accounts", [])
+            expired = self._pending_expired(pending)
+            selections.append(
+                {
+                    "provider": provider,
+                    "pending_id": str(pending_id),
+                    "status": "expired" if expired else "pending_account_selection",
+                    "expires_at": pending.get("expires_at"),
+                    "accounts": [
+                        safe_account_summary(_runtime_account(provider, account))
+                        for account in accounts
+                        if isinstance(account, dict)
+                    ],
+                }
+            )
+        return selections
+
+    def disconnect_provider(self, provider: str) -> dict[str, Any]:
+        if provider not in PROVIDER_NAMES:
+            raise ValueError(f"Unsupported provider: {provider}")
+        data = self.read()
+        if "_error" in data:
+            data = {}
+        connections = data.get("connections", {}) if isinstance(data.get("connections", {}), dict) else {}
+        pending_root = data.get("oauth_pending", {}) if isinstance(data.get("oauth_pending", {}), dict) else {}
+        connections.pop(provider, None)
+        pending_root.pop(provider, None)
+        data["connections"] = connections
+        data["oauth_pending"] = pending_root
+        data["version"] = int(data.get("version") or 1)
+        self._write(data)
+        return self.safe_provider_status(provider)
+
     def save_provider_config(self, provider: str, provider_config: dict[str, Any], source: str = "dashboard_oauth") -> dict[str, Any]:
         if provider not in PROVIDER_NAMES:
             raise ValueError(f"Unsupported provider: {provider}")
@@ -247,10 +293,19 @@ class HostedConnectionStore:
         if not isinstance(record, dict):
             raise ValueError("OAuth pending selection was not found.")
         expires_at = record.get("expires_at")
-        if expires_at and datetime.now(timezone.utc) > datetime.fromisoformat(str(expires_at)):
+        if self._pending_expired(record):
             self._remove_pending(provider, pending_id)
             raise ValueError("OAuth pending selection expired.")
         return record
+
+    def _pending_expired(self, record: dict[str, Any]) -> bool:
+        expires_at = record.get("expires_at")
+        if not expires_at:
+            return False
+        try:
+            return datetime.now(timezone.utc) > datetime.fromisoformat(str(expires_at))
+        except ValueError:
+            return True
 
     def _remove_pending(self, provider: str, pending_id: str) -> None:
         data = self.read()

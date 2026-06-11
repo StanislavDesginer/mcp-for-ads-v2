@@ -12,6 +12,26 @@ AD_MCP_CONNECTION_STORE_PATH=tokens/connections.json
 
 Callback URL на стороне провайдера должен совпадать с `AD_MCP_PUBLIC_BASE_URL` и redirect path.
 
+После успешного callback сервер по умолчанию возвращает пользователя в dashboard:
+
+```text
+/?section=connections&provider=<provider>&status=pending_account_selection&pending_id=<pending-id>
+```
+
+Если нужна техническая JSON-проверка callback, можно добавить `response=json` в query.
+
+Dashboard использует общий onboarding API:
+
+```http
+GET /api/hosted/connections
+GET /api/hosted/oauth/<provider>/authorize-url
+GET /api/hosted/oauth/<provider>/pending?pending_id=<pending-id>
+POST /api/hosted/oauth/<provider>/select
+POST /api/hosted/connections/disconnect
+```
+
+`disconnect` удаляет сохранённые токены и pending selections выбранного провайдера из hosted connection store.
+
 ## Google Ads
 
 Переменные:
