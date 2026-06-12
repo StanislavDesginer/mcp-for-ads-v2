@@ -1,138 +1,131 @@
 # Live beta status AdForge MCP
 
-Дата обновления: 2026-06-12.
+Дата обновления: 2026-06-12 (вечерняя сессия, проверки выполнены напрямую на VPS).
 
-Этот документ фиксирует честный live-статус hosted beta. Маркеры статусов:
+Маркеры статусов:
 
-- `verified_live` — проверено напрямую на live URL в эту сессию;
-- `verified_by_operator` — проверено оператором на предыдущем этапе (этап 11), в эту сессию не перепроверялось;
+- `verified_live` — проверено напрямую на live VPS/URL в эту сессию;
 - `not_verified` — не проверено;
 - `needs_credentials` — заблокировано отсутствием provider credentials в live env;
-- `needs_vps_access` — требуется SSH-доступ к VPS;
 - `needs_provider_dashboard_access` — требуется доступ к кабинету провайдера (Meta App Dashboard / Google Cloud Console).
 
 ## Live deployment
 
-- Live URL: `https://77.240.38.131.sslip.io` — `verified_live` (HTTPS отвечает).
-- Deployed commit: `d6602c4 Allow hosted MCP public reverse proxy host` — `verified_by_operator` (проверка `git log` на VPS требует SSH).
-- Repo на VPS: `/opt/adforge-mcp` — `verified_by_operator`.
-- Live env: `/etc/adforge-mcp/adforge-mcp.env` — `verified_by_operator`.
-- Storage: `/var/lib/adforge-mcp/connections.json` — `verified_live` (путь подтверждён через `/ready`, storage readable + valid_format).
-- Services `adforge-mcp-web`, `adforge-mcp-http` — `verified_live` косвенно: web отвечает на `/health`, MCP transport отвечает на `/mcp` (401 без token, значит процесс жив); `systemctl status` требует SSH.
+- Live URL: `https://77.240.38.131.sslip.io` — `verified_live`.
+- Deployed commit: `23a572d Harden beta readiness for live OAuth stage` — `verified_live` (обновлено с `d6602c4` fast-forward pull в эту сессию, конфликтов нет).
+- Repo на VPS: `/opt/adforge-mcp`, владелец `adforge` — `verified_live`.
+- Live env: `/etc/adforge-mcp/adforge-mcp.env`, beta token present (64 символа) — `verified_live` (значения не выводились).
+- Storage: `/var/lib/adforge-mcp/connections.json` — `verified_live`; права исправлены с `644` на `600`, владелец `adforge:adforge`.
+- Services: `adforge-mcp-web`, `adforge-mcp-http`, `nginx` — все `active/running` после рестарта — `verified_live`.
+- Порты: `127.0.0.1:8765` (web), `127.0.0.1:8766` (MCP HTTP) слушают — `verified_live`.
 
-## Public endpoint checks (выполнено в эту сессию)
+## Endpoint checks (все `verified_live`)
 
-- `GET /health` → `{"status": "ok", "service": "adforge-mcp-web"}` — `verified_live`.
-- `GET /ready` → `status=ready`, `environment=beta`, `beta_token required+configured`, `preview_only enabled`, `storage ok`, `mcp_transport available` — `verified_live`.
-- `GET /api/diagnostics` без token → `401` — `verified_live`.
-- `POST /mcp` без token → `401` (`invalid_token`, Authentication required) — `verified_live`.
-- `GET /tokens/connections.json` → `403` (private path blocked) — `verified_live`.
-- `GET /oauth/meta/callback` → `302` на dashboard с понятной ошибкой — `verified_live`.
-- `GET /oauth/google/callback` → `302` на dashboard с понятной ошибкой — `verified_live`.
-- `GET /api/hosted/oauth/meta/authorize-url` без token → `401` — `verified_live`.
+- `GET /` (dashboard) → `200`.
+- `GET /health` → `{"status": "ok"}`.
+- `GET /ready` → `status=ready`, `environment=beta`, token required+configured, `preview_only=true`, storage ok, MCP transport available; секретов в ответе нет.
+- `GET /api/diagnostics` без token → `401`; с token → `status=needs_setup` (аккаунты не подключены — честно).
+- `POST /mcp` без token → `401`; с token → транспорт отвечает (400 на `tools/list` без MCP session — нормально для streamable HTTP).
+- `GET /tokens/connections.json` → `403`; путь backup-директории → `404` (приватные пути закрыты).
 
-## Dashboard status
+## Strict smoke (`verified_live`)
 
-- Dashboard открывается по HTTPS — `verified_by_operator` (этап 11).
-- Connections UI: карточки Meta/Google/TikTok/Yandex, OAuth start, pending selection, выбор аккаунтов, reconnect/disconnect, Copy MCP URL, Run diagnostics — реализовано в коде, покрыто unit-тестами; live-прогон с beta token в эту сессию — `not_verified` (token недоступен в этой сессии).
+`scripts/smoke_hosted_beta.py --strict-deploy` на VPS: **все 18 checks OK**, включая новые строгие проверки `beta_token_configured` и `secrets_redacted`.
 
-## MCP status
+## Security diagnostics (`verified_live`)
 
-- Hosted MCP transport: Streamable HTTP на `/mcp`, bearer auth — `verified_live` (401 без token).
-- Подключение официальным `mcp.client.streamable_http`, tools count 110, `run_diagnostics`, `list_connected_platforms`, `list_ad_accounts` — `verified_by_operator` (этап 11).
-- Strict smoke `scripts/smoke_hosted_beta.py --strict-deploy` — `verified_by_operator` (этап 11); повторный прогон в эту сессию требует beta token — `not_verified`.
-- MCP diagnostics возвращает `needs_setup`, потому что ни один рекламный аккаунт ещё не подключён — ожидаемое честное состояние.
+`/api/diagnostics/security`:
 
-## Security diagnostics
+- `api_auth_required=true`;
+- `beta_token_configured=true`;
+- `preview_only=true`;
+- `live_writes_enabled=false`;
+- `tokens_returned=false`;
+- `secrets_redacted=true`;
+- `dangerous_debug_mode_enabled=false`;
+- `cors_policy=same-origin`, `cache_control=no-store`.
 
-- `api_auth_required=true` — `verified_live` (401 без token на `/api/*` и `/mcp`).
-- `beta_token_configured=true` — `verified_live` (через `/ready`).
-- `preview_only=true`, `live_writes_enabled=false` — `verified_live` (через `/ready`); полный `/api/diagnostics/security` требует token — `verified_by_operator`.
-- `tokens_returned=false`, `secrets_redacted=true` — заявлено кодом и покрыто unit-тестами; live-ответ `/api/diagnostics/security` в эту сессию — `not_verified` (нужен token).
-- Логи на отсутствие секретов — `needs_vps_access`.
+Journal logs (`adforge-mcp-web`, `adforge-mcp-http`, последние 300 строк): **0 совпадений** по маркерам `access_token= / refresh_token= / client_secret= / app_secret= / developer_token= / Bearer` — `verified_live`.
 
-## OAuth status по платформам
+## OAuth status по платформам (`verified_live`, presence из server env)
 
-| Платформа | Live статус | Подтверждение |
+| Платформа | Env credentials | Статус |
 | --- | --- | --- |
-| Meta Ads | `needs_credentials` — env `AD_MCP_META_OAUTH_APP_ID` / `AD_MCP_META_OAUTH_APP_SECRET` отсутствуют на live | `verified_live`: callback честно отвечает "Meta OAuth is not configured" |
-| Google Ads | `needs_credentials` — env `AD_MCP_GOOGLE_OAUTH_CLIENT_ID` / `AD_MCP_GOOGLE_OAUTH_CLIENT_SECRET` / `AD_MCP_GOOGLE_ADS_DEVELOPER_TOKEN` отсутствуют на live | `verified_live`: callback честно отвечает "google_ads OAuth is not configured" |
-| TikTok Ads | env частично настроен, `authorize-url` отвечал `oauth_ready`; live OAuth не проходил | `verified_by_operator`; в эту сессию `not_verified` (нужен token) |
-| Yandex Direct | env частично настроен, `authorize-url` отвечал `oauth_ready`; live OAuth не проходил | `verified_by_operator`; в эту сессию `not_verified` (нужен token) |
+| Meta Ads | `AD_MCP_META_OAUTH_APP_ID=missing`, `AD_MCP_META_OAUTH_APP_SECRET=missing` | `needs_credentials` |
+| Google Ads | `CLIENT_ID=missing`, `CLIENT_SECRET=missing`, `DEVELOPER_TOKEN=missing`, `LOGIN_CUSTOMER_ID=missing` | `needs_credentials` |
+| TikTok Ads | `APP_ID=present`, `APP_SECRET=present` | `not_connected` — env есть, live OAuth не проходил |
+| Yandex Direct | `CLIENT_ID=present`, `CLIENT_SECRET=present` | `not_connected` — env есть, live OAuth не проходил |
 
-- Connected platforms: 0.
-- Connected accounts: 0.
-- Live OAuth НЕ был пройден ни для одной платформы. Fake-результаты не создавались.
+- Connected platforms: 0. Connected accounts: 0.
+- Live OAuth не проходил ни для одной платформы. Fake-данные не создавались.
 
 ## Read tools / metrics status
 
-- `list_connected_platforms`, `list_ad_accounts`, `get_account_status`, `run_connection_diagnostics`, `run_diagnostics` — работают и без подключённых аккаунтов (возвращают честный `not_connected` / `needs_setup`) — `verified_by_operator` на live, unit-тесты зелёные локально.
-- `list_campaigns`, `get_campaign`, `get_campaign_statuses`, `get_basic_metrics` — вернут реальные данные только после подключения аккаунта; до этого честно возвращают `not_available` / policy error. Live-проверка с реальным аккаунтом — `needs_credentials`.
-- MCP tools перечитывают hosted connection store при каждом вызове, поэтому после OAuth-подключения рестарт `adforge-mcp-http` не обязателен для появления аккаунтов в read tools.
+- Диагностические tools (`run_diagnostics`, `list_connected_platforms`, `list_ad_accounts`, `get_account_status`, `run_connection_diagnostics`) работают и честно возвращают `needs_setup`/`not_connected` — подтверждено через `/api/diagnostics` и capabilities (`verified_live`).
+- `list_campaigns`, `get_campaign_statuses`, `get_basic_metrics` — вернут реальные данные только после подключения аккаунта; до этого `not_available`. Проверка на реальном аккаунте — `needs_credentials`.
+- MCP tools перечитывают connection store при каждом вызове: после OAuth-подключения рестарт `adforge-mcp-http` не обязателен.
 
 ## Preview-only status
 
-- `AD_MCP_PREVIEW_ONLY=true` на live — `verified_live` (через `/ready`).
-- Все preview tools возвращают `will_apply=false`, `mode=preview_only`; `commit_preview` возвращает `status=blocked` — закреплено unit-тестами и smoke-скриптом.
-- Проверка preview tools на реальном `campaign_id` — `needs_credentials` (нет подключённого аккаунта).
+- `preview_only=true`, `live_writes_enabled=false` на live — `verified_live`.
+- `will_apply=false` / `commit_preview=blocked` закреплены unit-тестами и локальным smoke; проверка на реальном `campaign_id` — `needs_credentials` (нет подключённого аккаунта).
 
 ## Backup status
 
-- Последний известный backup: `/var/backups/adforge-mcp/connections-20260612-170210.json` — `verified_by_operator`.
-- Новый backup после подключения аккаунтов не делался, потому что аккаунты ещё не подключались — `needs_vps_access` после live OAuth.
+- Storage права: `600 adforge:adforge` — `verified_live` (исправлено в эту сессию).
+- Backups в `/var/backups/adforge-mcp/` (директория `750`, не публичная — `verified_live`):
+  - `connections-20260612-170210.json`;
+  - `connections-20260612-185156.json` (создан в эту сессию, `600`).
 
 ## Что нужно для завершения этапа 12 (live OAuth Meta / Google)
 
-### Meta Ads
+### Meta Ads — `needs_provider_dashboard_access`
 
-1. Создать/открыть Meta app (тип Business) в Meta App Dashboard — `needs_provider_dashboard_access`.
-2. В Facebook Login → Settings добавить Valid OAuth Redirect URI: `https://77.240.38.131.sslip.io/oauth/meta/callback`.
-3. Убедиться, что app имеет permissions `ads_read`, `business_management` (для dev mode достаточно роли разработчика/тестера у пользователя с доступом к рекламному кабинету).
-4. На VPS добавить в `/etc/adforge-mcp/adforge-mcp.env` (не в repo, не в отчёты): `AD_MCP_META_OAUTH_APP_ID`, `AD_MCP_META_OAUTH_APP_SECRET`.
-5. `sudo systemctl restart adforge-mcp-web adforge-mcp-http`.
-6. Проверить: `curl -H "Authorization: Bearer <BETA_TOKEN>" https://77.240.38.131.sslip.io/api/hosted/oauth/meta/diagnostics` → `status=configured`.
-7. Пройти dashboard flow: Connections → Connect Meta Ads → OAuth → выбор аккаунтов → Save → Run diagnostics.
-8. Проверить MCP tools: `list_ad_accounts`, `list_campaigns platform=meta_ads`, `get_basic_metrics platform=meta_ads` за последние 7 дней.
+1. В Meta App Dashboard (app типа Business): Facebook Login → Settings → Valid OAuth Redirect URIs: `https://77.240.38.131.sslip.io/oauth/meta/callback`.
+2. Permissions: `ads_read`, `business_management`; у пользователя — доступ к рекламному кабинету (для dev mode — роль в app).
+3. В `/etc/adforge-mcp/adforge-mcp.env` добавить: `AD_MCP_META_OAUTH_APP_ID`, `AD_MCP_META_OAUTH_APP_SECRET` (только на сервере).
+4. `sudo systemctl restart adforge-mcp-web adforge-mcp-http`.
+5. Dashboard → Connections → Connect Meta Ads → OAuth → выбрать аккаунты → Save → Run diagnostics.
+6. MCP: `list_ad_accounts`, `list_campaigns platform=meta_ads`, `get_basic_metrics` за 7 дней.
 
-### Google Ads
+### Google Ads — `needs_provider_dashboard_access`
 
-1. В Google Cloud Console создать OAuth Client (Web application) — `needs_provider_dashboard_access`.
-2. Добавить Authorized redirect URI: `https://77.240.38.131.sslip.io/oauth/google/callback`.
-3. Настроить OAuth consent screen; если app в testing mode — добавить test user.
-4. Включить Google Ads API в проекте; получить Developer Token в Google Ads (API Center); для test developer token работают только test accounts.
-5. На VPS добавить в `/etc/adforge-mcp/adforge-mcp.env`: `AD_MCP_GOOGLE_OAUTH_CLIENT_ID`, `AD_MCP_GOOGLE_OAUTH_CLIENT_SECRET`, `AD_MCP_GOOGLE_ADS_DEVELOPER_TOKEN`, опционально `AD_MCP_GOOGLE_ADS_LOGIN_CUSTOMER_ID` (manager account, цифры без дефисов).
-6. `sudo systemctl restart adforge-mcp-web adforge-mcp-http`.
-7. Пройти dashboard flow: Connections → Connect Google Ads → OAuth (consent + offline access уже запрашиваются кодом) → выбор customer accounts → Save → Run diagnostics.
-8. Проверить MCP tools: `list_campaigns platform=google_ads`, `get_basic_metrics platform=google_ads`.
+1. Google Cloud Console: OAuth Client (Web application), Authorized redirect URI: `https://77.240.38.131.sslip.io/oauth/google/callback`.
+2. OAuth consent screen настроен; в testing mode добавить test user; Google Ads API включён; Developer Token из Google Ads API Center.
+3. В `/etc/adforge-mcp/adforge-mcp.env` добавить: `AD_MCP_GOOGLE_OAUTH_CLIENT_ID`, `AD_MCP_GOOGLE_OAUTH_CLIENT_SECRET`, `AD_MCP_GOOGLE_ADS_DEVELOPER_TOKEN`, опционально `AD_MCP_GOOGLE_ADS_LOGIN_CUSTOMER_ID` (цифры без дефисов).
+4. `sudo systemctl restart adforge-mcp-web adforge-mcp-http`.
+5. Dashboard → Connections → Connect Google Ads → OAuth → выбрать customer accounts → Save → Run diagnostics.
+6. MCP: `list_campaigns platform=google_ads`, `get_basic_metrics platform=google_ads`.
 
 ### После подключения (обе платформы)
 
-1. `python scripts/smoke_hosted_beta.py --base-url https://77.240.38.131.sslip.io --token "<BETA_TOKEN>" --strict-deploy` → все checks ok.
-2. Проверить логи: `sudo journalctl -u adforge-mcp-web -n 200 | grep -iE "access_token|refresh_token|client_secret|app_secret|developer_token|bearer"` → пусто.
-3. Preview-проверка на реальном campaign_id: `preview_change_campaign_budget`, `preview_pause_campaign`, `preview_resume_campaign` → `will_apply=false`, `commit_preview` → `blocked`.
-4. Backup: `sudo -u adforge cp /var/lib/adforge-mcp/connections.json "/var/backups/adforge-mcp/connections-$(date +%Y%m%d-%H%M%S).json" && sudo chmod 600 /var/backups/adforge-mcp/connections-*.json`.
-5. Обновить этот документ.
+1. Strict smoke на VPS → все checks ok.
+2. Журналы на секреты → 0 совпадений.
+3. Preview-проверка на реальном `campaign_id`: `preview_change_campaign_budget`, `preview_pause_campaign`, `preview_resume_campaign` → `will_apply=false`; `commit_preview` → `blocked`.
+4. Backup `connections.json` (см. runbook) и обновление этого документа.
 
 ## Known limitations
 
-- Реальные write-действия отключены (preview-only) — это осознанное ограничение beta.
-- TikTok/Yandex: campaigns/metrics могут возвращать `not_available` — read-интеграция в beta ограничена.
-- Connection store — JSON-файл без межпроцессных блокировок; одновременные OAuth-операции из нескольких сессий могут перезаписать друг друга. Для одного beta-оператора приемлемо.
-- `sslip.io` домен и self-issued IP-cert цепочка зависят от Let's Encrypt; для продакшена нужен собственный домен.
+- Реальные write-действия отключены (preview-only) — осознанное ограничение beta.
+- TikTok/Yandex: env present, но live OAuth не проходил; campaigns/metrics могут возвращать `not_available`.
+- Connection store — JSON-файл без межпроцессных блокировок; для одного beta-оператора приемлемо.
+- `sslip.io` — временный домен; для продакшена нужен собственный домен и постоянный cert.
 
 ## Готовность к demo
 
-Готово сейчас (без реальных данных):
+Готово сейчас (`verified_live`):
 
-- hosted dashboard + beta token gate;
-- hosted MCP endpoint с bearer auth (110 tools);
-- диагностика и честные `needs_setup`/`not_connected` статусы;
-- preview-only guardrails.
+- hosted dashboard за beta token gate;
+- hosted MCP endpoint c bearer auth;
+- strict smoke полностью зелёный;
+- security posture полностью соответствует ожиданиям;
+- preview-only guardrails;
+- честные `needs_setup`/`not_connected` статусы;
+- storage с корректными правами и свежим backup.
 
 Блокеры demo с реальными рекламными данными:
 
 1. Meta OAuth credentials в live env — `needs_credentials`.
 2. Google OAuth credentials + developer token в live env — `needs_credentials`.
-3. Прохождение live OAuth и выбор аккаунтов в dashboard — после п.1/п.2.
-4. Проверка read tools и метрик на реальном аккаунте — после п.3.
-5. Backup storage после подключения — после п.3.
+3. Live OAuth + выбор аккаунтов в dashboard — после п.1/п.2.
+4. Read tools/metrics и preview-only на реальном аккаунте — после п.3.
