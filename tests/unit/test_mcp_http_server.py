@@ -72,3 +72,14 @@ def test_hosted_mcp_app_exposes_configured_route(tmp_path) -> None:
     paths = {getattr(route, "path", "") for route in app.routes}
 
     assert "/custom-mcp" in paths
+
+
+def test_public_mcp_url_can_be_overridden_for_reverse_proxy(tmp_path) -> None:
+    settings = Settings(
+        project_root=tmp_path,
+        public_base_url="https://dashboard.example.com",
+        mcp_public_url="https://mcp.example.com/custom-mcp",
+        mcp_endpoint_path="/mcp",
+    )
+
+    assert settings.public_mcp_url == "https://mcp.example.com/custom-mcp"

@@ -172,8 +172,12 @@ class AdsWebHandler(BaseHTTPRequestHandler):
         try:
             if route == "/":
                 return self._send_file(STATIC_ROOT / "index.html", "text/html; charset=utf-8")
-            if route == "/healthz":
-                return self._send_json({"status": "ok"})
+            if route in {"/health", "/healthz"}:
+                return self._send_json({"status": "ok", "service": "adforge-mcp-web"})
+            if route == "/ready":
+                readiness = self.diagnostics.readiness()
+                status = HTTPStatus.OK if readiness.get("status") == "ready" else HTTPStatus.SERVICE_UNAVAILABLE
+                return self._send_json(readiness, status)
             if route == "/assets/app.css":
                 return self._send_file(STATIC_ROOT / "app.css", "text/css; charset=utf-8")
             if route == "/assets/app.js":

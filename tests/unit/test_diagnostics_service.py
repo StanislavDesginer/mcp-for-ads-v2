@@ -63,6 +63,50 @@ def test_diagnostics_marks_invalid_connection_store(tmp_path: Path) -> None:
     assert payload["storage"]["valid_format"] is False
 
 
+def test_readiness_requires_beta_token_preview_only_and_valid_storage(tmp_path: Path) -> None:
+    settings = Settings(
+        project_root=tmp_path,
+        env="production",
+        web_api_token="secret-token",
+        preview_only=True,
+        connection_store_path="tokens/connections.json",
+        connections_fallback_to_local=False,
+    )
+    HostedConnectionStore(settings.connection_store_file).save_provider_config(
+        "meta_ads",
+        {"provider": "meta_ads", "accounts": [{"account_id": "act_123", "access_token": "sensitive-meta-value"}]},
+    )
+
+    payload = DiagnosticsService(settings).readiness()
+
+    assert payload["status"] == "ready"
+    assert payload["checks"]["beta_token"]["configured"] is True
+    assert payload["checks"]["preview_only"]["enabled"] is True
+    assert payload["checks"]["storage"]["valid_format"] is True
+    assert "sensitive-meta-value" not in str(payload)
+
+
+def test_readiness_fails_without_required_beta_token(tmp_path: Path) -> None:
+    settings = Settings(
+        project_root=tmp_path,
+        env="production",
+        web_api_token="",
+        preview_only=True,
+        connection_store_path="tokens/connections.json",
+        connections_fallback_to_local=False,
+    )
+    HostedConnectionStore(settings.connection_store_file).save_provider_config(
+        "meta_ads",
+        {"provider": "meta_ads", "accounts": [{"account_id": "act_123"}]},
+    )
+
+    payload = DiagnosticsService(settings).readiness()
+
+    assert payload["status"] == "not_ready"
+    assert payload["checks"]["beta_token"]["status"] == "error"
+    assert payload["checks"]["mcp_transport"]["status"] == "error"
+
+
 def test_platform_live_diagnostics_return_not_available_without_fake_data(tmp_path: Path) -> None:
     settings = Settings(project_root=tmp_path, connection_store_path="tokens/connections.json", connections_fallback_to_local=False)
     HostedConnectionStore(settings.connection_store_file).save_provider_config(

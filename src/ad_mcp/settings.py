@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     web_max_body_bytes: int = 65536
     preview_only: bool = True
     public_base_url: str = ""
+    mcp_public_url: str = ""
     mcp_endpoint_path: str = "/mcp"
     mcp_http_host: str = "127.0.0.1"
     mcp_http_port: int = 8766
@@ -123,4 +124,7 @@ class Settings(BaseSettings):
 
     @property
     def public_mcp_url(self) -> str:
+        configured = self.mcp_public_url.strip()
+        if configured:
+            return configured.rstrip("/")
         return f"{self.public_base_or_local_mcp_url}{self.mcp_route_path}"

@@ -64,6 +64,11 @@ AdForge MCP - hosted MCP-сервис для безопасной работы �
 - [docs/beta/MCP_TOOLS_REFERENCE_RU.md](docs/beta/MCP_TOOLS_REFERENCE_RU.md) - beta tools reference.
 - [docs/beta/BETA_SECURITY_RU.md](docs/beta/BETA_SECURITY_RU.md) - безопасность, preview-only и секреты.
 - [docs/beta/BETA_DEMO_CHECKLIST_RU.md](docs/beta/BETA_DEMO_CHECKLIST_RU.md) - чеклист beta-demo.
+- [docs/beta/VPS_DEPLOYMENT_RU.md](docs/beta/VPS_DEPLOYMENT_RU.md) - production-like beta deployment на VPS/WPS.
+- [docs/beta/ENVIRONMENT_RU.md](docs/beta/ENVIRONMENT_RU.md) - env variables для hosted beta.
+- [docs/beta/REVERSE_PROXY_RU.md](docs/beta/REVERSE_PROXY_RU.md) - Nginx/Caddy, HTTPS и proxy routing.
+- [docs/beta/SYSTEMD_SERVICE_RU.md](docs/beta/SYSTEMD_SERVICE_RU.md) - systemd unit setup.
+- [docs/beta/STORAGE_AND_BACKUP_RU.md](docs/beta/STORAGE_AND_BACKUP_RU.md) - storage, backup и restore.
 - [docs/beta/HOSTED_MCP_TRANSPORT_RU.md](docs/beta/HOSTED_MCP_TRANSPORT_RU.md) - hosted MCP transport.
 - [docs/beta/DIAGNOSTICS_RU.md](docs/beta/DIAGNOSTICS_RU.md) - backend/dashboard/MCP diagnostics.
 - [docs/beta/PARTNER_OAUTH_FLOWS_RU.md](docs/beta/PARTNER_OAUTH_FLOWS_RU.md) - OAuth flows Google/TikTok/Yandex.
@@ -131,3 +136,5 @@ Recommended beta deployment uses two internal processes behind Nginx:
 External users receive only dashboard URL, MCP URL and beta token. Server secrets stay in environment variables on the VPS/WPS server.
 
 Deployment details for the server team: [DEPLOYING.md](DEPLOYING.md).
+
+Production-like beta deployment guide: [docs/beta/VPS_DEPLOYMENT_RU.md](docs/beta/VPS_DEPLOYMENT_RU.md).

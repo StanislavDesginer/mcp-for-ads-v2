@@ -1,0 +1,65 @@
+# Systemd service
+
+Для текущей архитектуры выбран systemd, потому что AdForge MCP на VPS запускается как два Python-процесса за reverse proxy:
+
+- `ad-mcp-web` для dashboard/API;
+- `ad-mcp-http` для hosted MCP transport.
+
+Docker можно добавить позже, но для текущего VPS beta systemd проще и прозрачнее.
+
+## Files
+
+Примеры лежат в:
+
+- `deploy/adforge-mcp-web.service.example`;
+- `deploy/adforge-mcp-http.service.example`.
+
+## Установка
+
+```bash
+sudo cp /opt/adforge-mcp/deploy/adforge-mcp-web.service.example /etc/systemd/system/adforge-mcp-web.service
+sudo cp /opt/adforge-mcp/deploy/adforge-mcp-http.service.example /etc/systemd/system/adforge-mcp-http.service
+sudo systemctl daemon-reload
+```
+
+## Запуск
+
+```bash
+sudo systemctl enable --now adforge-mcp-web
+sudo systemctl enable --now adforge-mcp-http
+```
+
+## Проверка статуса
+
+```bash
+sudo systemctl status adforge-mcp-web
+sudo systemctl status adforge-mcp-http
+```
+
+## Logs
+
+```bash
+sudo journalctl -u adforge-mcp-web -n 100 --no-pager
+sudo journalctl -u adforge-mcp-http -n 100 --no-pager
+sudo journalctl -u adforge-mcp-web -f
+```
+
+Логи не должны содержать raw tokens или client secrets.
+
+## Restart после изменения `.env`
+
+```bash
+sudo systemctl restart adforge-mcp-web adforge-mcp-http
+```
+
+## Security options
+
+Unit examples включают:
+
+- отдельного пользователя `adforge`;
+- `NoNewPrivileges=true`;
+- `PrivateTmp=true`;
+- `ProtectSystem=full`;
+- `ReadWritePaths=/opt/adforge-mcp/tokens /opt/adforge-mcp/logs`.
+
+Если путь установки отличается от `/opt/adforge-mcp`, обновите `WorkingDirectory`, `EnvironmentFile`, `ExecStart` и `ReadWritePaths`.

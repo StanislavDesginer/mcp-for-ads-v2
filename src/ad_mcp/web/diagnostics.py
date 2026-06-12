@@ -165,6 +165,60 @@ class DiagnosticsService:
             "next_actions": self._next_actions(platforms["platforms"], missing_env),
         }
 
+    def readiness(self) -> dict[str, Any]:
+        issues: list[str] = []
+        checks: dict[str, Any] = {}
+
+        token_required = bool(self.settings.web_api_token.strip()) or self.settings.env.lower() == "production" or is_network_exposed_host(self.settings.web_host)
+        token_configured = bool(self.settings.web_api_token.strip())
+        checks["backend"] = {"status": "ok", "environment": self.settings.env}
+        checks["beta_token"] = {
+            "status": "ok" if (not token_required or token_configured) else "error",
+            "required": token_required,
+            "configured": token_configured,
+        }
+        if token_required and not token_configured:
+            issues.append("AD_MCP_WEB_API_TOKEN is required for this deployment.")
+
+        checks["preview_only"] = {"status": "ok" if self.settings.preview_only else "error", "enabled": self.settings.preview_only}
+        if not self.settings.preview_only:
+            issues.append("AD_MCP_PREVIEW_ONLY must stay true for beta.")
+
+        connections = self.connections()
+        storage = connections["storage"]
+        storage_ok = bool(storage.get("readable") and storage.get("valid_format"))
+        checks["storage"] = {
+            "status": "ok" if storage_ok else "error",
+            "configured": storage.get("configured"),
+            "readable": storage.get("readable"),
+            "valid_format": storage.get("valid_format"),
+            "path": storage.get("path"),
+        }
+        if not storage_ok:
+            issues.append("Connection storage is missing, unreadable, or invalid.")
+
+        mcp = self.mcp()
+        mcp_ready = mcp.get("status") == "ready"
+        checks["mcp_transport"] = {
+            "status": "ok" if mcp_ready else "error",
+            "transport_status": mcp.get("transport", {}).get("status"),
+            "url": mcp.get("transport", {}).get("url"),
+            "endpoint_path": mcp.get("transport", {}).get("endpoint_path"),
+            "auth_required": mcp.get("transport", {}).get("auth_required"),
+            "token_configured": mcp.get("transport", {}).get("token_configured"),
+        }
+        if not mcp_ready:
+            issues.append("Hosted MCP transport is not ready.")
+
+        diagnostics_ok = not issues
+        checks["diagnostics"] = {"status": "ok" if diagnostics_ok else "degraded"}
+        return {
+            "status": "ready" if not issues else "not_ready",
+            "generated_at": _now_iso(),
+            "checks": checks,
+            "issues": issues,
+        }
+
     def platforms(self, *, live: bool = False) -> dict[str, Any]:
         provider_configs, provider_sources = load_runtime_provider_configs(self.settings)
         registry = _build_registry(provider_configs)

@@ -16,12 +16,14 @@
 AD_MCP_ENV=production
 AD_MCP_WEB_API_TOKEN=change-this-beta-token
 AD_MCP_PUBLIC_BASE_URL=https://mcp.adforge.example
+AD_MCP_MCP_PUBLIC_URL=
 AD_MCP_MCP_ENDPOINT_PATH=/mcp
 AD_MCP_MCP_HTTP_HOST=127.0.0.1
 AD_MCP_MCP_HTTP_PORT=8766
 ```
 
 `AD_MCP_PUBLIC_BASE_URL` - внешний URL, который пользователь вставляет в Codex / Claude / другой MCP client.
+Если MCP endpoint находится на отдельном домене или нестандартном пути, задайте полный `AD_MCP_MCP_PUBLIC_URL`, например `https://mcp.your-domain.com/mcp`.
 
 ## Запуск MCP transport
 

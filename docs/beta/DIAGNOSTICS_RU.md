@@ -4,6 +4,9 @@ AdForge MCP имеет единый слой диагностики для backe
 
 ## Backend endpoints
 
+- `GET /health` - lightweight healthcheck web process.
+- `GET /healthz` - legacy alias для healthcheck.
+- `GET /ready` - production-like readiness: beta token, storage, preview-only, diagnostics и MCP transport metadata.
 - `GET /api/diagnostics` - общий статус backend, MCP, storage, платформ и next actions.
 - `GET /api/diagnostics/platforms` - статусы всех платформ.
 - `GET /api/diagnostics/platforms/<platform>` - диагностика одной платформы.

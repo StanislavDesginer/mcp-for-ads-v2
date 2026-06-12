@@ -32,6 +32,11 @@ AdForge MCP - hosted MCP-сервис. Клиент не скачивает GitH
 - Tools: [MCP_TOOLS_REFERENCE_RU.md](MCP_TOOLS_REFERENCE_RU.md).
 - Security: [BETA_SECURITY_RU.md](BETA_SECURITY_RU.md).
 - Demo checklist: [BETA_DEMO_CHECKLIST_RU.md](BETA_DEMO_CHECKLIST_RU.md).
+- VPS deployment: [VPS_DEPLOYMENT_RU.md](VPS_DEPLOYMENT_RU.md).
+- Environment: [ENVIRONMENT_RU.md](ENVIRONMENT_RU.md).
+- Reverse proxy / HTTPS: [REVERSE_PROXY_RU.md](REVERSE_PROXY_RU.md).
+- Systemd: [SYSTEMD_SERVICE_RU.md](SYSTEMD_SERVICE_RU.md).
+- Storage and backup: [STORAGE_AND_BACKUP_RU.md](STORAGE_AND_BACKUP_RU.md).
 
 ## Beta platform status
 

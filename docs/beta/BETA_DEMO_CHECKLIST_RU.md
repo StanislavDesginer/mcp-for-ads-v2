@@ -4,11 +4,18 @@
 
 ## A. Server / deployment
 
+- VPS deployment guide reviewed: [VPS_DEPLOYMENT_RU.md](VPS_DEPLOYMENT_RU.md).
+- Env variables reviewed: [ENVIRONMENT_RU.md](ENVIRONMENT_RU.md).
+- Reverse proxy / HTTPS reviewed: [REVERSE_PROXY_RU.md](REVERSE_PROXY_RU.md).
+- Systemd units installed from [SYSTEMD_SERVICE_RU.md](SYSTEMD_SERVICE_RU.md).
+- Storage/backup plan reviewed: [STORAGE_AND_BACKUP_RU.md](STORAGE_AND_BACKUP_RU.md).
 - Backend web process запущен.
 - Hosted MCP process запущен.
 - Dashboard открывается по публичному URL.
 - MCP endpoint доступен по публичному URL, обычно `/mcp`.
 - `AD_MCP_WEB_API_TOKEN` настроен.
+- `GET /health` работает.
+- `GET /ready` возвращает `ready`.
 - Запрос без beta token получает 401.
 - Запрос с beta token проходит.
 - `GET /api/diagnostics` работает.

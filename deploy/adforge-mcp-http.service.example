@@ -1,0 +1,20 @@
+[Unit]
+Description=AdForge MCP hosted HTTP transport
+After=network.target adforge-mcp-web.service
+
+[Service]
+Type=simple
+User=adforge
+Group=adforge
+WorkingDirectory=/opt/adforge-mcp
+EnvironmentFile=/opt/adforge-mcp/.env
+ExecStart=/opt/adforge-mcp/.venv/bin/ad-mcp-http
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/adforge-mcp/tokens /opt/adforge-mcp/logs
+
+[Install]
+WantedBy=multi-user.target
