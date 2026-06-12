@@ -19,6 +19,7 @@ from ad_mcp.mcp_auth import build_mcp_auth
 from ad_mcp.settings import Settings
 from ad_mcp.tools.account_read import build_account_read_tools
 from ad_mcp.tools.analytics_read import build_analytics_read_tools
+from ad_mcp.tools.beta_read import build_beta_read_tools
 from ad_mcp.tools.billing import build_billing_tools
 from ad_mcp.tools.discovery import build_discovery_tools
 from ad_mcp.tools.intents import build_intent_tools
@@ -93,6 +94,7 @@ def create_server(settings: Settings | None = None, *, hosted_http: bool = False
     )
     toolsets = [
         build_discovery_tools(registry),
+        build_beta_read_tools(registry, policy_manager, settings),
         build_billing_tools(registry, policy_manager),
         build_account_read_tools(registry, policy_manager),
         build_analytics_read_tools(registry, policy_manager),

@@ -54,3 +54,104 @@ async def test_beta_diagnostics_reads_accounts_from_hosted_connection_store(tmp_
 
     assert payload["config"]["connection_store"]["provider_sources"]["meta_ads"] == "hosted_connection_store"
     assert payload["providers"]["meta_ads"]["accounts"] == [{"name": "Hosted Meta", "account_id": "hosted_123", "status": "connected"}]
+
+
+@pytest.mark.asyncio
+async def test_beta_read_tools_are_registered_and_hide_connection_secrets(tmp_path) -> None:
+    settings = Settings(
+        project_root=tmp_path,
+        connection_store_path="tokens/connections.json",
+        connections_fallback_to_local=False,
+    )
+    HostedConnectionStore(settings.connection_store_file).save_provider_config(
+        "meta_ads",
+        {
+            "provider": "meta_ads",
+            "accounts": [
+                {
+                    "name": "Hosted Meta",
+                    "account_id": "act_123",
+                    "status": "connected",
+                    "currency": "USD",
+                    "access_token": "unit-test-token",
+                    "app_secret": "unit-test-app-value",
+                }
+            ],
+        },
+    )
+    mcp = create_server(settings)
+    tools = await mcp.list_tools()
+    tool_names = {tool.name for tool in tools}
+
+    assert {
+        "list_connected_platforms",
+        "list_ad_accounts",
+        "get_account_status",
+        "run_connection_diagnostics",
+        "list_campaigns",
+        "get_campaign",
+        "get_campaign_statuses",
+        "get_basic_metrics",
+    }.issubset(tool_names)
+
+    accounts = _json_tool_payload(await mcp.call_tool("list_ad_accounts", {"platform": "meta_ads"}))
+    assert accounts["account_count"] == 1
+    account = accounts["accounts"][0]
+    assert account["platform"] == "meta_ads"
+    assert account["connection_status"] == "active"
+    assert account["credentials_present"] is True
+    assert "access_token" not in account
+    assert "app_secret" not in account
+
+    status = _json_tool_payload(await mcp.call_tool("get_account_status", {"platform": "meta_ads", "account_id": "123"}))
+    assert status["status"] == "active"
+    assert status["credentials_present"] is True
+
+
+@pytest.mark.asyncio
+async def test_beta_read_tools_return_not_available_without_fake_data(tmp_path) -> None:
+    settings = Settings(
+        project_root=tmp_path,
+        connection_store_path="tokens/connections.json",
+        connections_fallback_to_local=False,
+    )
+    HostedConnectionStore(settings.connection_store_file).save_provider_config(
+        "tiktok_ads",
+        {
+            "provider": "tiktok_ads",
+            "accounts": [
+                {
+                    "name": "TikTok Demo",
+                    "account_id": "7444458786967928833",
+                    "advertiser_id": "7444458786967928833",
+                    "status": "connected",
+                    "access_token": "secret-token",
+                }
+            ],
+        },
+    )
+    mcp = create_server(settings)
+
+    campaigns = _json_tool_payload(
+        await mcp.call_tool(
+            "list_campaigns",
+            {"platform": "tiktok_ads", "account_id": "7444458786967928833"},
+        )
+    )
+    assert campaigns["status"] == "not_available"
+    assert campaigns["real_data"] is False
+
+    metrics = _json_tool_payload(
+        await mcp.call_tool(
+            "get_basic_metrics",
+            {
+                "platform": "tiktok_ads",
+                "account_id": "7444458786967928833",
+                "date_from": "2026-06-01",
+                "date_to": "2026-06-07",
+            },
+        )
+    )
+    assert metrics["status"] == "not_available"
+    assert metrics["real_data"] is False
+    assert "rows" not in metrics

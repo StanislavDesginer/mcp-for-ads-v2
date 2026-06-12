@@ -3,6 +3,7 @@ from __future__ import annotations
 from ad_mcp.core.models import ReportRequest, ReportResponse
 from ad_mcp.core.models import CapabilityMap
 from ad_mcp.providers.base.client import BaseAdsProvider
+from ad_mcp.providers.google_ads.account_read import fetch_google_campaign, fetch_google_campaigns
 from ad_mcp.providers.google_ads.auth import credentials_from_config
 from ad_mcp.providers.google_ads.payloads import build_google_ads_payload
 from ad_mcp.providers.google_ads.reporting import fetch_google_report
@@ -49,6 +50,37 @@ class GoogleAdsProvider(BaseAdsProvider):
             return super().get_report(request)
         credentials = credentials_from_config(account_config)
         return fetch_google_report(credentials, request, self.capabilities.supported_metrics)
+
+    def list_account_objects(
+        self,
+        account_id: str,
+        object_type: str,
+        fields: list[str] | None = None,
+        params: dict | None = None,
+        limit: int = 100,
+    ) -> dict:
+        account_config = self.get_account_config(account_id)
+        if not account_config:
+            return super().list_account_objects(account_id, object_type, fields, params, limit)
+        if object_type.strip().lower() != "campaign":
+            return super().list_account_objects(account_id, object_type, fields, params, limit)
+        credentials = credentials_from_config(account_config)
+        return fetch_google_campaigns(credentials, status=(params or {}).get("status"), limit=limit)
+
+    def get_account_object(
+        self,
+        account_id: str,
+        object_type: str,
+        object_id: str,
+        fields: list[str] | None = None,
+    ) -> dict:
+        account_config = self.get_account_config(account_id)
+        if not account_config:
+            return super().get_account_object(account_id, object_type, object_id, fields)
+        if object_type.strip().lower() != "campaign":
+            return super().get_account_object(account_id, object_type, object_id, fields)
+        credentials = credentials_from_config(account_config)
+        return fetch_google_campaign(credentials, object_id)
 
     def build_provider_payload(self, action: str, account_id: str, object_type: str, payload: dict) -> dict:
         provider_payload = build_google_ads_payload(action, object_type, payload)

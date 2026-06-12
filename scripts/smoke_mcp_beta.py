@@ -16,6 +16,14 @@ from ad_mcp.settings import Settings
 
 REQUIRED_TOOLS = {
     "list_providers",
+    "list_connected_platforms",
+    "list_ad_accounts",
+    "get_account_status",
+    "run_connection_diagnostics",
+    "list_campaigns",
+    "get_campaign",
+    "get_campaign_statuses",
+    "get_basic_metrics",
     "get_provider_capabilities",
     "list_accounts",
     "describe_auth_strategy",

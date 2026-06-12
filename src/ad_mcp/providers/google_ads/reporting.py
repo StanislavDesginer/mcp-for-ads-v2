@@ -45,6 +45,13 @@ FROM_MAP = {
 }
 
 
+def _safe_enum(value: str) -> str:
+    safe = "".join(char for char in value.strip().upper() if char.isalnum() or char == "_")
+    if not safe:
+        raise ValueError("Google Ads enum filter is empty.")
+    return safe
+
+
 def _normalize_value(field: str, value: Any) -> Any:
     if field == "spend" and value is not None:
         return float(value) / 1_000_000
@@ -73,14 +80,15 @@ def fetch_google_report(
             preview=True,
         )
 
-    config = {
+    config: dict[str, Any] = {
         "developer_token": credentials.developer_token,
         "client_id": credentials.oauth_client_id,
         "client_secret": credentials.oauth_client_secret,
         "refresh_token": credentials.refresh_token,
-        "login_customer_id": credentials.login_customer_id,
         "use_proto_plus": True,
     }
+    if credentials.login_customer_id:
+        config["login_customer_id"] = credentials.login_customer_id
     client = GoogleAdsClient.load_from_dict(config)
     service = client.get_service("GoogleAdsService")
 
@@ -90,10 +98,21 @@ def fetch_google_report(
         if api_field and api_field not in select_fields:
             select_fields.append(api_field)
     from_resource = FROM_MAP.get(request.entity_level, "campaign")
+    where = [
+        f"segments.date BETWEEN '{request.date_range.start_date}' AND '{request.date_range.end_date}'",
+    ]
+    campaign_id = str(request.filters.get("campaign_id") or "").strip()
+    if campaign_id and from_resource in {"campaign", "ad_group", "ad_group_ad", "keyword_view"}:
+        if not campaign_id.isdigit():
+            raise ValueError("Google Ads campaign_id must be numeric.")
+        where.append(f"campaign.id = {campaign_id}")
+    status = str(request.filters.get("status") or "").strip()
+    if status and from_resource in {"campaign", "ad_group", "ad_group_ad", "keyword_view"}:
+        where.append(f"campaign.status = '{_safe_enum(status)}'")
     query = (
         f"SELECT {', '.join(select_fields)} "
         f"FROM {from_resource} "
-        f"WHERE segments.date BETWEEN '{request.date_range.start_date}' AND '{request.date_range.end_date}'"
+        f"WHERE {' AND '.join(where)}"
     )
 
     rows: list[dict[str, Any]] = []
