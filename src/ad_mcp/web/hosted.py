@@ -255,6 +255,12 @@ class HostedConnectionService:
     def _platform_status(self, platform: PlatformDescriptor) -> dict[str, Any]:
         hosted_config = self._store.provider_config(platform.provider)
         hosted_accounts = hosted_config.get("accounts", [])
+        store_data = self._store.read()
+        stored_connection = (
+            store_data.get("connections", {})
+            if isinstance(store_data.get("connections", {}), dict)
+            else {}
+        ).get(platform.provider, {})
         provider_config = load_provider_from_connections(self._settings.connections_config_path, platform.provider)
         accounts = provider_config.get("accounts", [])
         safe_accounts = [safe_account_summary(account) for account in hosted_accounts if isinstance(account, dict)]
@@ -283,6 +289,27 @@ class HostedConnectionService:
             status = "planned_later"
             source = "none"
         oauth_preview = self.oauth_start_preview(platform.provider)
+        missing_env = [
+            name
+            for name in OAUTH_REQUIRED_ENV.get(platform.provider, ())
+            if not str(getattr(self._settings, ENV_TO_SETTING[name], "") or "").strip()
+        ]
+        last_error = None
+        if expired_pending:
+            last_error = {
+                "status": "expired",
+                "message": "OAuth pending account selection expired. Reconnect this platform.",
+            }
+        elif missing_env:
+            last_error = {
+                "status": "env_missing",
+                "message": "OAuth app credentials are missing on the server.",
+            }
+        diagnostic_status = status
+        if status == "connected" and not missing_env:
+            diagnostic_status = "mcp_ready"
+        elif missing_env:
+            diagnostic_status = "env_missing"
         return {
             "provider": platform.provider,
             "label": platform.label,
@@ -294,6 +321,14 @@ class HostedConnectionService:
             "source": source,
             "accounts": safe_accounts,
             "pending_selections": pending_selections,
+            "diagnostic_summary": {
+                "status": diagnostic_status,
+                "account_count": len(safe_accounts),
+                "last_successful_update": stored_connection.get("updated_at") or stored_connection.get("created_at") if isinstance(stored_connection, dict) else None,
+                "last_error": last_error,
+                "missing_required_env": missing_env,
+                "run_diagnostics_endpoint": f"/api/diagnostics/platforms/{platform.provider}?live=1",
+            },
         }
 
     def _oauth_redirect_path(self, provider: str) -> str:

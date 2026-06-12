@@ -22,6 +22,7 @@ from ad_mcp.tools.analytics_read import build_analytics_read_tools
 from ad_mcp.tools.beta_read import build_beta_read_tools
 from ad_mcp.tools.billing import build_billing_tools
 from ad_mcp.tools.dangerous_preview import build_dangerous_preview_tools
+from ad_mcp.tools.diagnostics import build_diagnostics_tools
 from ad_mcp.tools.discovery import build_discovery_tools
 from ad_mcp.tools.intents import build_intent_tools
 from ad_mcp.tools.meta_specialist import build_meta_specialist_tools
@@ -112,6 +113,7 @@ def create_server(settings: Settings | None = None, *, hosted_http: bool = False
         build_intent_tools(registry, preview_manager, policy_manager),
         build_meta_specialist_tools(registry, preview_manager, policy_manager),
         build_mcp_skill_preset_tools(registry, policy_manager),
+        build_diagnostics_tools(settings),
     ]
     for toolset in toolsets:
         for name, func in toolset.items():

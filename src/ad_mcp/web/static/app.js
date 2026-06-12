@@ -81,6 +81,7 @@
     persistence: () => requestJson("/api/meta/persistence"),
     dataContract: () => requestJson("/api/meta/data-contract"),
     hostedConnections: () => requestJson("/api/hosted/connections"),
+    diagnosticsPlatform: (provider, live = false) => requestJson(`/api/diagnostics/platforms/${encodeURIComponent(provider)}${live ? "?live=1" : ""}`),
     oauthAuthorizeUrl: (providerSlug) => requestJson(`/api/hosted/oauth/${providerSlug}/authorize-url`),
     oauthPending: (providerSlug, pendingId) => requestJson(`/api/hosted/oauth/${providerSlug}/pending?pending_id=${encodeURIComponent(pendingId)}`),
     oauthSelect: (providerSlug, payload) => requestJson(`/api/hosted/oauth/${providerSlug}/select`, "POST", payload),
@@ -599,6 +600,9 @@
     el.connectionsContent.querySelectorAll("[data-disconnect-provider]").forEach((button) => {
       button.addEventListener("click", () => disconnectProvider(button.dataset.disconnectProvider, button));
     });
+    el.connectionsContent.querySelectorAll("[data-diagnostics-provider]").forEach((button) => {
+      button.addEventListener("click", () => runPlatformDiagnostics(button.dataset.diagnosticsProvider, button));
+    });
     el.connectionsContent.querySelectorAll("[data-pending-form]").forEach((form) => {
       form.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -636,8 +640,10 @@
         </div>
         ${activePending ? renderPendingCallout(platform, activePending) : ""}
         ${expiredPending && !activePending ? renderExpiredCallout(expiredPending) : ""}
+        ${renderPlatformDiagnosticSummary(platform)}
         <footer class="connection-platform__actions">
           <button type="button" class="btn btn--primary connection-platform__button" data-oauth-provider="${escAttr(platform.provider)}" ${connectDisabled}>${buttonText}</button>
+          <button type="button" class="btn btn--secondary" data-diagnostics-provider="${escAttr(platform.provider)}">Run diagnostics</button>
           ${
             accounts.length
               ? `<button type="button" class="btn btn--secondary" data-disconnect-provider="${escAttr(platform.provider)}">Disconnect</button>`
@@ -645,6 +651,56 @@
           }
         </footer>
       </article>
+    `;
+  }
+
+  async function runPlatformDiagnostics(provider, button) {
+    if (!provider) return;
+    button.disabled = true;
+    button.classList.add("is-loading");
+    button.textContent = "Checking…";
+    try {
+      const result = await api.diagnosticsPlatform(provider, true);
+      state.connectionNotice = {
+        tone: result.status === "mcp_ready" ? "success" : "info",
+        text: `${providerLabel(provider)} diagnostics: ${connectionStatusLabel(result.status)}.`,
+      };
+      const payload = await api.hostedConnections();
+      const platform = (payload.platforms || []).find((item) => item.provider === provider);
+      if (platform) {
+        platform.diagnostic_summary = {
+          status: result.status,
+          account_count: result.account_count,
+          last_successful_update: result.last_successful_update,
+          last_error: result.last_error,
+          missing_required_env: result.missing_required_env || [],
+        };
+      }
+      renderConnections(payload);
+    } catch (error) {
+      state.connectionNotice = { tone: "error", text: humanizeError(error) };
+      renderConnections(await api.hostedConnections());
+    }
+  }
+
+  function renderPlatformDiagnosticSummary(platform) {
+    const summary = platform.diagnostic_summary || {};
+    const missing = summary.missing_required_env || [];
+    const lastError = summary.last_error || {};
+    const status = summary.status || connectionDisplayStatus(platform);
+    return `
+      <div class="connection-diagnostics">
+        <div class="connection-diagnostics__head">
+          <span>Diagnostics</span>
+          <strong class="${statusClass(status)}">${esc(connectionStatusLabel(status))}</strong>
+        </div>
+        <div class="kv-grid">
+          ${renderKv("Accounts", summary.account_count ?? (platform.accounts || []).length)}
+          ${renderKv("Last success", summary.last_successful_update || "not checked")}
+          ${renderKv("Missing env", missing.length ? missing.join(", ") : "none")}
+          ${renderKv("Last error", lastError.message || "none")}
+        </div>
+      </div>
     `;
   }
 
@@ -1441,6 +1497,14 @@
       pending_account_selection: "select accounts",
       connected: "connected",
       error: "error",
+      env_missing: "env missing",
+      platform_not_configured: "platform not configured",
+      oauth_started: "OAuth started",
+      token_expired: "token expired",
+      reconnect_required: "reconnect required",
+      api_error: "API error",
+      no_accounts_selected: "no accounts selected",
+      mcp_ready: "MCP ready",
       "expired/reconnect_required": "reconnect required",
       expired: "expired",
       development_configured: "connected",
@@ -1454,6 +1518,11 @@
 
   function connectionHint(platform, status) {
     if (status === "connected") return "Connected accounts are available to hosted MCP tools.";
+    if (status === "mcp_ready") return "MCP tools can use this platform.";
+    if (status === "env_missing") return "Required OAuth env variables are missing on the server.";
+    if (status === "api_error") return "Provider API returned an error. Run diagnostics for details.";
+    if (status === "no_accounts_selected") return "OAuth may be configured, but no accounts are selected.";
+    if (status === "token_expired") return "Stored token appears expired. Reconnect this platform.";
     if (status === "pending_account_selection") return "OAuth finished, but account selection is still required.";
     if (status === "expired/reconnect_required" || status === "expired") return "The OAuth selection window expired. Reconnect this platform.";
     if (!platform.oauth_configured) return "OAuth app credentials are not configured on the server yet.";
@@ -1695,9 +1764,9 @@
 
   function statusClass(status) {
     const normalized = String(status || "").toUpperCase();
-    if (["ACTIVE", "OK", "READY", "SUCCESS", "CONNECTED", "OAUTH_READY"].includes(normalized)) return "is-success";
-    if (["READY_FOR_OAUTH", "OAUTH_NOT_CONFIGURED", "NOT_CONNECTED", "CONNECTING", "PENDING_ACCOUNT_SELECTION", "EXPIRED", "EXPIRED/RECONNECT_REQUIRED", "PAUSED", "PENDING_REVIEW", "LEARNING", "LIMITED"].includes(normalized)) return "is-warning";
-    if (["DISAPPROVED", "ERROR", "FAILED", "REJECTED"].includes(normalized)) return "is-danger";
+    if (["ACTIVE", "OK", "READY", "SUCCESS", "CONNECTED", "OAUTH_READY", "MCP_READY"].includes(normalized)) return "is-success";
+    if (["READY_FOR_OAUTH", "OAUTH_NOT_CONFIGURED", "NOT_CONNECTED", "CONNECTING", "PENDING_ACCOUNT_SELECTION", "EXPIRED", "EXPIRED/RECONNECT_REQUIRED", "RECONNECT_REQUIRED", "TOKEN_EXPIRED", "NO_ACCOUNTS_SELECTED", "ENV_MISSING", "PAUSED", "PENDING_REVIEW", "LEARNING", "LIMITED"].includes(normalized)) return "is-warning";
+    if (["DISAPPROVED", "ERROR", "FAILED", "REJECTED", "API_ERROR"].includes(normalized)) return "is-danger";
     return "is-neutral";
   }
 

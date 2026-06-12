@@ -13,10 +13,11 @@ from urllib.parse import urlencode
 import httpx
 
 from ad_mcp.core.connection_store import HostedConnectionStore
+from ad_mcp.core.errors import OAuthError
 from ad_mcp.settings import Settings
 
 
-class PartnerOAuthError(RuntimeError):
+class PartnerOAuthError(OAuthError):
     pass
 
 

@@ -20,6 +20,7 @@ REQUIRED_TOOLS = {
     "list_ad_accounts",
     "get_account_status",
     "run_connection_diagnostics",
+    "run_diagnostics",
     "list_campaigns",
     "get_campaign",
     "get_campaign_statuses",

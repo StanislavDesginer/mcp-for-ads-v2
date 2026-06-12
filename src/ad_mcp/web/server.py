@@ -9,8 +9,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from ad_mcp.core.errors import AdMCPError
+from ad_mcp.core.errors import AdMCPError, normalize_error
 from ad_mcp.settings import Settings, is_network_exposed_host
+from ad_mcp.web.diagnostics import DiagnosticsService
 from ad_mcp.web.hosted import HostedConnectionService
 from ad_mcp.web.service import MetaDashboardService
 
@@ -45,6 +46,7 @@ def _request_token_is_valid(headers, settings: Settings) -> bool:
 
 class AdsWebHandler(BaseHTTPRequestHandler):
     settings = Settings()
+    diagnostics = DiagnosticsService()
     hosted = HostedConnectionService()
     service = MetaDashboardService()
 
@@ -115,6 +117,13 @@ class AdsWebHandler(BaseHTTPRequestHandler):
         if len(text) > 320:
             return f"{text[:317]}..."
         return text
+
+    def _client_error_code(self, exc: Exception) -> str:
+        if isinstance(exc, json.JSONDecodeError):
+            return "invalid_json"
+        if isinstance(exc, KeyError):
+            return "missing_field"
+        return str(normalize_error(exc).get("code") or "bad_request")
 
     def _unexpected_error(self, operation: str, exc: Exception) -> None:
         request_id = uuid.uuid4().hex[:12]
@@ -187,7 +196,19 @@ class AdsWebHandler(BaseHTTPRequestHandler):
             query = self._query()
             account_id = query.get("account_id")
             end_date = query.get("end_date")
+            live_diagnostics = query.get("live", "").lower() in {"1", "true", "yes"}
 
+            if route == "/api/diagnostics":
+                return self._send_json(self.diagnostics.overview(live=live_diagnostics))
+            if route == "/api/diagnostics/platforms":
+                return self._send_json(self.diagnostics.platforms(live=live_diagnostics))
+            if route.startswith("/api/diagnostics/platforms/"):
+                provider = route.removeprefix("/api/diagnostics/platforms/").strip("/")
+                return self._send_json(self.diagnostics.platform(provider, live=live_diagnostics))
+            if route == "/api/diagnostics/connections":
+                return self._send_json(self.diagnostics.connections())
+            if route == "/api/diagnostics/mcp":
+                return self._send_json(self.diagnostics.mcp())
             if route == "/api/hosted/mcp-connection":
                 return self._send_json(self.hosted.mcp_connection_info())
             if route == "/api/hosted/connections":
@@ -308,7 +329,7 @@ class AdsWebHandler(BaseHTTPRequestHandler):
                     )
                 )
         except (AdMCPError, ValueError, KeyError, json.JSONDecodeError, RuntimeError) as exc:
-            return self._error(self._client_error_message(exc))
+            return self._error(self._client_error_message(exc), code=self._client_error_code(exc))
         except Exception as exc:  # noqa: BLE001
             return self._unexpected_error("GET", exc)
 
@@ -359,7 +380,7 @@ class AdsWebHandler(BaseHTTPRequestHandler):
                 ids = payload.get("ids") or []
                 return self._send_json(self.service.preview_pause_ads(ids=[str(item) for item in ids], account_id=payload.get("account_id")))
         except (AdMCPError, ValueError, KeyError, json.JSONDecodeError, RuntimeError) as exc:
-            return self._error(self._client_error_message(exc))
+            return self._error(self._client_error_message(exc), code=self._client_error_code(exc))
         except Exception as exc:  # noqa: BLE001
             return self._unexpected_error("POST", exc)
 
@@ -374,6 +395,7 @@ def main() -> None:
     host = settings.web_host
     port = settings.web_port
     AdsWebHandler.settings = settings
+    AdsWebHandler.diagnostics = DiagnosticsService(settings)
     AdsWebHandler.hosted = HostedConnectionService(settings)
     AdsWebHandler.service = MetaDashboardService(settings)
     if _api_token_required(settings) and not settings.web_api_token.strip():

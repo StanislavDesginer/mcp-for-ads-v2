@@ -90,6 +90,7 @@ async def test_beta_read_tools_are_registered_and_hide_connection_secrets(tmp_pa
         "list_ad_accounts",
         "get_account_status",
         "run_connection_diagnostics",
+        "run_diagnostics",
         "list_campaigns",
         "get_campaign",
         "get_campaign_statuses",
