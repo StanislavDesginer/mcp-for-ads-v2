@@ -254,6 +254,46 @@ class HostedConnectionStore:
         self._write(data)
         return self.pending_selection(provider, pending_id)
 
+    def save_oauth_state(self, provider: str, state_id: str, ttl_seconds: int = 900) -> None:
+        if provider not in PROVIDER_NAMES:
+            raise ValueError(f"Unsupported provider: {provider}")
+        if not state_id:
+            raise ValueError("OAuth state id is required.")
+        data = self.read()
+        if "_error" in data:
+            data = {}
+        state_root = data.setdefault("oauth_states", {})
+        if not isinstance(state_root, dict):
+            state_root = {}
+            data["oauth_states"] = state_root
+        provider_states = state_root.setdefault(provider, {})
+        if not isinstance(provider_states, dict):
+            provider_states = {}
+            state_root[provider] = provider_states
+        provider_states[state_id] = {
+            "provider": provider,
+            "created_at": _now_iso(),
+            "expires_at": _expires_iso(ttl_seconds),
+        }
+        data["version"] = int(data.get("version") or 1)
+        self._write(data)
+
+    def consume_oauth_state(self, provider: str, state_id: str) -> None:
+        if provider not in PROVIDER_NAMES:
+            raise ValueError(f"Unsupported provider: {provider}")
+        data = self.read()
+        state_root = data.get("oauth_states", {}) if isinstance(data.get("oauth_states", {}), dict) else {}
+        provider_states = state_root.get(provider, {}) if isinstance(state_root.get(provider, {}), dict) else {}
+        record = provider_states.get(state_id)
+        if not isinstance(record, dict):
+            raise ValueError("OAuth state was not found or was already used.")
+        if self._pending_expired(record):
+            provider_states.pop(state_id, None)
+            self._write(data)
+            raise ValueError("OAuth state expired.")
+        provider_states.pop(state_id, None)
+        self._write(data)
+
     def pending_selection(self, provider: str, pending_id: str) -> dict[str, Any]:
         pending = self._pending(provider, pending_id)
         accounts = pending.get("accounts", [])

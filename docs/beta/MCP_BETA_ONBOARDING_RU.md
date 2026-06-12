@@ -31,6 +31,7 @@ AdForge MCP - hosted MCP-сервис. Клиент не скачивает GitH
 - Gemini/other clients: [OTHER_MCP_CLIENTS_RU.md](OTHER_MCP_CLIENTS_RU.md).
 - Tools: [MCP_TOOLS_REFERENCE_RU.md](MCP_TOOLS_REFERENCE_RU.md).
 - Security: [BETA_SECURITY_RU.md](BETA_SECURITY_RU.md).
+- Security hardening: [SECURITY_HARDENING_RU.md](SECURITY_HARDENING_RU.md).
 - Demo checklist: [BETA_DEMO_CHECKLIST_RU.md](BETA_DEMO_CHECKLIST_RU.md).
 - VPS deployment: [VPS_DEPLOYMENT_RU.md](VPS_DEPLOYMENT_RU.md).
 - Environment: [ENVIRONMENT_RU.md](ENVIRONMENT_RU.md).

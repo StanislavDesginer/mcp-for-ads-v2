@@ -20,6 +20,7 @@
 - Запрос с beta token проходит.
 - `GET /api/diagnostics` работает.
 - `GET /api/diagnostics/mcp` показывает hosted MCP URL и auth status.
+- `GET /api/diagnostics/security` показывает posture без секретов.
 
 ## B. OAuth / dashboard
 
@@ -59,6 +60,9 @@
 - Токены не попадают в diagnostics response.
 - `tokens/connections.json` не закоммичен.
 - `.env` и `ads_config.yaml` не закоммичены.
+- OAuth callback с invalid/reused state отклоняется.
+- Nginx rate limiting включен или явно отложен.
+- CSP/security headers включены.
 
 ## E. Known limitations
 

@@ -2,6 +2,8 @@
 
 AdForge MCP beta построен вокруг безопасной hosted-модели: сервер и секреты находятся на VPS/WPS, клиент подключает только dashboard и hosted MCP endpoint.
 
+Подробный hardening checklist: [SECURITY_HARDENING_RU.md](SECURITY_HARDENING_RU.md).
+
 ## Preview-only mode
 
 В beta реальные write-действия отключены.
@@ -33,6 +35,8 @@ Authorization: Bearer <BETA_TOKEN>
 ```
 
 В production-like окружении без `AD_MCP_WEB_API_TOKEN` API должен быть заблокирован.
+
+Все `GET /api/*`, `POST /api/*` и hosted MCP endpoint закрыты beta token. Публичными остаются только dashboard shell, `/health`, `/ready` без секретов и OAuth callback endpoints со state protection.
 
 ## Секреты
 
@@ -77,6 +81,19 @@ Env variables показываются только как `present` или `mis
 ## Logs
 
 В logs не должны попадать raw tokens или secrets. Ошибки OAuth/provider API должны редактироваться перед выводом наружу.
+
+OAuth state подписывается, имеет TTL и используется одноразово. Pending selection доступен только через закрытый `/api/hosted/oauth/<provider>/pending`.
+
+## Security diagnostics
+
+Проверить posture можно через:
+
+```http
+GET /api/diagnostics/security
+Authorization: Bearer <BETA_TOKEN>
+```
+
+Endpoint показывает только статусы, например `beta_token_configured`, `preview_only`, `live_writes_enabled=false`, `connections_storage_accessible`, `oauth_provider_env_present`.
 
 ## Preview response
 

@@ -150,6 +150,7 @@ def main() -> int:
     diagnostics = _check_authorized_api(args.base_url, args.token, "/api/diagnostics", live=args.live)
     checks.append(diagnostics)
     checks.append(_check_authorized_api(args.base_url, args.token, "/api/diagnostics/mcp"))
+    checks.append(_check_authorized_api(args.base_url, args.token, "/api/diagnostics/security"))
     if not args.skip_oauth:
         checks.append(_check_authorized_api(args.base_url, args.token, "/api/hosted/oauth/diagnostics"))
     checks.append(_check_preview_only(diagnostics.data, ready.data))

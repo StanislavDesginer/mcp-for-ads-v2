@@ -9,11 +9,13 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any
 from urllib.parse import urlencode
+from uuid import uuid4
 
 import httpx
 
 from ad_mcp.core.connection_store import HostedConnectionStore
 from ad_mcp.core.errors import OAuthError
+from ad_mcp.core.redaction import redact_secret_text
 from ad_mcp.settings import Settings
 
 
@@ -22,24 +24,7 @@ class PartnerOAuthError(OAuthError):
 
 
 def _redact_oauth_error(text: str) -> str:
-    clean = text
-    for marker in ("access_token=", "refresh_token=", "client_secret=", "secret=", "developer-token=", "Authorization:"):
-        while marker in clean:
-            start = clean.find(marker) + len(marker)
-            end_candidates = [
-                idx
-                for idx in (
-                    clean.find("&", start),
-                    clean.find(" ", start),
-                    clean.find("'", start),
-                    clean.find('"', start),
-                    clean.find("\\n", start),
-                )
-                if idx != -1
-            ]
-            end = min(end_candidates) if end_candidates else len(clean)
-            clean = f"{clean[:start]}***REDACTED***{clean[end:]}"
-    return clean
+    return redact_secret_text(text)
 
 
 def _b64_encode(payload: bytes) -> str:
@@ -107,6 +92,11 @@ class BasePartnerOAuthService(ABC):
         signature = hmac.new(self._signing_secret(), body.encode("ascii"), hashlib.sha256).digest()
         return f"{body}.{_b64_encode(signature)}"
 
+    def _new_state(self, redirect_uri: str) -> str:
+        state_id = uuid4().hex
+        self._store.save_oauth_state(self.provider, state_id, self.state_ttl_seconds)
+        return self._sign_state({"provider": self.provider, "iat": int(time.time()), "jti": state_id, "redirect_uri": redirect_uri})
+
     def _verify_state(self, state: str) -> dict[str, Any]:
         try:
             body, signature = state.split(".", 1)
@@ -121,12 +111,19 @@ class BasePartnerOAuthService(ABC):
             raise PartnerOAuthError("Invalid OAuth state payload.") from exc
         if payload.get("provider") != self.provider:
             raise PartnerOAuthError("Invalid OAuth state provider.")
+        state_id = str(payload.get("jti", "") or "").strip()
+        if not state_id:
+            raise PartnerOAuthError("Invalid OAuth state id.")
         try:
             issued_at = int(payload.get("iat") or 0)
         except (TypeError, ValueError) as exc:
             raise PartnerOAuthError("Invalid OAuth state timestamp.") from exc
         if int(time.time()) - issued_at > self.state_ttl_seconds:
             raise PartnerOAuthError("OAuth state expired.")
+        try:
+            self._store.consume_oauth_state(self.provider, state_id)
+        except ValueError as exc:
+            raise PartnerOAuthError(str(exc)) from exc
         return payload
 
     def _client(self) -> tuple[httpx.Client, bool]:
@@ -194,7 +191,7 @@ class GoogleOAuthService(BasePartnerOAuthService):
             "AD_MCP_GOOGLE_OAUTH_CLIENT_ID, AD_MCP_GOOGLE_OAUTH_CLIENT_SECRET and AD_MCP_GOOGLE_ADS_DEVELOPER_TOKEN"
         )
         redirect_uri = self.redirect_uri()
-        state = self._sign_state({"provider": self.provider, "iat": int(time.time()), "redirect_uri": redirect_uri})
+        state = self._new_state(redirect_uri)
         query = urlencode(
             {
                 "client_id": self._settings.google_oauth_client_id.strip(),
@@ -213,12 +210,12 @@ class GoogleOAuthService(BasePartnerOAuthService):
         self._ensure_configured(
             "AD_MCP_GOOGLE_OAUTH_CLIENT_ID, AD_MCP_GOOGLE_OAUTH_CLIENT_SECRET and AD_MCP_GOOGLE_ADS_DEVELOPER_TOKEN"
         )
+        state_payload = self._verify_state(str(query.get("state", "") or "").strip())
         if query.get("error"):
-            raise PartnerOAuthError(query.get("error_description") or query["error"])
+            raise PartnerOAuthError(_redact_oauth_error(query.get("error_description") or query["error"]))
         code = str(query.get("code", "") or "").strip()
         if not code:
             raise PartnerOAuthError("Google OAuth callback is missing code.")
-        state_payload = self._verify_state(str(query.get("state", "") or "").strip())
         redirect_uri = str(state_payload.get("redirect_uri") or self.redirect_uri())
         token_payload = self._exchange_code_for_token(code, redirect_uri)
         access_token = str(token_payload.get("access_token", "") or "").strip()
@@ -361,7 +358,7 @@ class TikTokOAuthService(BasePartnerOAuthService):
     def authorization_url(self) -> str:
         self._ensure_configured("AD_MCP_TIKTOK_OAUTH_APP_ID and AD_MCP_TIKTOK_OAUTH_APP_SECRET")
         redirect_uri = self.redirect_uri()
-        state = self._sign_state({"provider": self.provider, "iat": int(time.time()), "redirect_uri": redirect_uri})
+        state = self._new_state(redirect_uri)
         params: dict[str, str] = {
             "app_id": self._settings.tiktok_oauth_app_id.strip(),
             "redirect_uri": redirect_uri,
@@ -374,12 +371,12 @@ class TikTokOAuthService(BasePartnerOAuthService):
 
     def handle_callback(self, query: dict[str, str]) -> dict[str, Any]:
         self._ensure_configured("AD_MCP_TIKTOK_OAUTH_APP_ID and AD_MCP_TIKTOK_OAUTH_APP_SECRET")
+        self._verify_state(str(query.get("state", "") or "").strip())
         if query.get("error"):
-            raise PartnerOAuthError(query.get("error_description") or query["error"])
+            raise PartnerOAuthError(_redact_oauth_error(query.get("error_description") or query["error"]))
         auth_code = str(query.get("auth_code") or query.get("code") or "").strip()
         if not auth_code:
             raise PartnerOAuthError("TikTok OAuth callback is missing auth_code.")
-        self._verify_state(str(query.get("state", "") or "").strip())
         token_payload = self._exchange_code_for_token(auth_code)
         token_data = token_payload.get("data") if isinstance(token_payload.get("data"), dict) else token_payload
         access_token = str(token_data.get("access_token", "") or "").strip()
@@ -484,7 +481,7 @@ class YandexOAuthService(BasePartnerOAuthService):
     def authorization_url(self) -> str:
         self._ensure_configured("AD_MCP_YANDEX_OAUTH_CLIENT_ID and AD_MCP_YANDEX_OAUTH_CLIENT_SECRET")
         redirect_uri = self.redirect_uri()
-        state = self._sign_state({"provider": self.provider, "iat": int(time.time()), "redirect_uri": redirect_uri})
+        state = self._new_state(redirect_uri)
         query = urlencode(
             {
                 "response_type": "code",
@@ -498,12 +495,12 @@ class YandexOAuthService(BasePartnerOAuthService):
 
     def handle_callback(self, query: dict[str, str]) -> dict[str, Any]:
         self._ensure_configured("AD_MCP_YANDEX_OAUTH_CLIENT_ID and AD_MCP_YANDEX_OAUTH_CLIENT_SECRET")
+        state_payload = self._verify_state(str(query.get("state", "") or "").strip())
         if query.get("error"):
-            raise PartnerOAuthError(query.get("error_description") or query["error"])
+            raise PartnerOAuthError(_redact_oauth_error(query.get("error_description") or query["error"]))
         code = str(query.get("code", "") or "").strip()
         if not code:
             raise PartnerOAuthError("Yandex OAuth callback is missing code.")
-        state_payload = self._verify_state(str(query.get("state", "") or "").strip())
         redirect_uri = str(state_payload.get("redirect_uri") or self.redirect_uri())
         token_payload = self._exchange_code_for_token(code, redirect_uri)
         access_token = str(token_payload.get("access_token", "") or "").strip()

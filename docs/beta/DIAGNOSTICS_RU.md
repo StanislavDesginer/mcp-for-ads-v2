@@ -12,6 +12,7 @@ AdForge MCP имеет единый слой диагностики для backe
 - `GET /api/diagnostics/platforms/<platform>` - диагностика одной платформы.
 - `GET /api/diagnostics/connections` - состояние `tokens/connections.json` и выбранных аккаунтов.
 - `GET /api/diagnostics/mcp` - URL, transport, auth и готовность MCP tools.
+- `GET /api/diagnostics/security` - security posture без раскрытия секретов.
 
 Для безопасной live-проверки provider read API добавьте `?live=1`:
 

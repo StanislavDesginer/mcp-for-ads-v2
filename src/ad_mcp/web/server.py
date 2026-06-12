@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from ad_mcp.core.errors import AdMCPError, normalize_error
+from ad_mcp.core.redaction import redact_secret_text
 from ad_mcp.settings import Settings, is_network_exposed_host
 from ad_mcp.web.diagnostics import DiagnosticsService
 from ad_mcp.web.hosted import HostedConnectionService
@@ -55,6 +56,14 @@ class AdsWebHandler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Vary", "Authorization")
+        self.send_header("Cross-Origin-Resource-Policy", "same-origin")
+        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        )
 
     def _send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK, headers: dict[str, str] | None = None) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -111,7 +120,7 @@ class AdsWebHandler(BaseHTTPRequestHandler):
             return "Некорректный JSON в теле запроса."
         if isinstance(exc, KeyError):
             return f"Не хватает обязательного поля: {exc.args[0]}"
-        text = str(exc).strip()
+        text = redact_secret_text(str(exc).strip())
         if not text:
             return "Запрос не может быть выполнен."
         if len(text) > 320:
@@ -127,7 +136,7 @@ class AdsWebHandler(BaseHTTPRequestHandler):
 
     def _unexpected_error(self, operation: str, exc: Exception) -> None:
         request_id = uuid.uuid4().hex[:12]
-        LOGGER.exception("Unhandled web UI error during %s %s request_id=%s", operation, self.path, request_id)
+        LOGGER.exception("Unhandled web UI error during %s %s request_id=%s", operation, redact_secret_text(self.path), request_id)
         self._send_json(
             {
                 "error": "Непредвиденная ошибка web-layer. Проверьте логи сервера.",
@@ -213,6 +222,8 @@ class AdsWebHandler(BaseHTTPRequestHandler):
                 return self._send_json(self.diagnostics.connections())
             if route == "/api/diagnostics/mcp":
                 return self._send_json(self.diagnostics.mcp())
+            if route == "/api/diagnostics/security":
+                return self._send_json(self.diagnostics.security())
             if route == "/api/hosted/mcp-connection":
                 return self._send_json(self.hosted.mcp_connection_info())
             if route == "/api/hosted/connections":

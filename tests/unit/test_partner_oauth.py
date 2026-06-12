@@ -175,3 +175,27 @@ def test_partner_oauth_rejects_tampered_state(tmp_path) -> None:
 
     with pytest.raises(PartnerOAuthError, match="signature"):
         service.handle_callback({"code": "google-code", "state": f"{state}tampered"})
+
+
+def test_partner_oauth_state_is_single_use(tmp_path) -> None:
+    service = GoogleOAuthService(_settings(tmp_path), _FakePartnerHTTP())
+    state = parse_qs(urlparse(service.authorization_url()).query)["state"][0]
+
+    service.handle_callback({"code": "google-code", "state": state})
+
+    with pytest.raises(PartnerOAuthError, match="already used|not found"):
+        service.handle_callback({"code": "google-code", "state": state})
+
+
+def test_partner_oauth_rejects_expired_state(tmp_path, monkeypatch) -> None:
+    import ad_mcp.web.partner_oauth as partner_oauth
+
+    settings = _settings(tmp_path)
+    service = GoogleOAuthService(settings, _FakePartnerHTTP())
+    issued_at = 1_700_000_000
+    monkeypatch.setattr(partner_oauth.time, "time", lambda: issued_at)
+    state = parse_qs(urlparse(service.authorization_url()).query)["state"][0]
+    monkeypatch.setattr(partner_oauth.time, "time", lambda: issued_at + settings.google_oauth_state_ttl_seconds + 1)
+
+    with pytest.raises(PartnerOAuthError, match="expired"):
+        service.handle_callback({"code": "google-code", "state": state})

@@ -8,11 +8,13 @@ import json
 import time
 from typing import Any
 from urllib.parse import urlencode
+from uuid import uuid4
 
 import httpx
 
 from ad_mcp.core.connection_store import HostedConnectionStore
 from ad_mcp.core.errors import OAuthError
+from ad_mcp.core.redaction import redact_secret_text
 from ad_mcp.settings import Settings
 
 
@@ -24,14 +26,7 @@ class MetaOAuthError(OAuthError):
 
 
 def _redact_oauth_error(text: str) -> str:
-    clean = text
-    for marker in ("access_token=", "client_secret=", "app_secret="):
-        while marker in clean:
-            start = clean.find(marker) + len(marker)
-            end_candidates = [idx for idx in (clean.find("&", start), clean.find(" ", start), clean.find("'", start), clean.find('"', start)) if idx != -1]
-            end = min(end_candidates) if end_candidates else len(clean)
-            clean = f"{clean[:start]}***REDACTED***{clean[end:]}"
-    return clean
+    return redact_secret_text(text)
 
 
 def _b64_encode(payload: bytes) -> str:
@@ -55,7 +50,9 @@ class MetaOAuthService:
     def authorization_url(self) -> str:
         self._ensure_configured()
         redirect_uri = self.redirect_uri()
-        state = self._sign_state({"provider": META_PROVIDER, "iat": int(time.time()), "redirect_uri": redirect_uri})
+        state_id = uuid4().hex
+        state = self._sign_state({"provider": META_PROVIDER, "iat": int(time.time()), "jti": state_id, "redirect_uri": redirect_uri})
+        self._store.save_oauth_state(META_PROVIDER, state_id, self._settings.meta_oauth_state_ttl_seconds)
         query = urlencode(
             {
                 "client_id": self._settings.meta_oauth_app_id.strip(),
@@ -72,13 +69,12 @@ class MetaOAuthService:
 
     def handle_callback(self, query: dict[str, str]) -> dict[str, Any]:
         self._ensure_configured()
+        state_payload = self._verify_state(str(query.get("state", "") or "").strip())
         if query.get("error"):
-            raise MetaOAuthError(query.get("error_description") or query.get("error_reason") or query["error"])
+            raise MetaOAuthError(_redact_oauth_error(query.get("error_description") or query.get("error_reason") or query["error"]))
         code = str(query.get("code", "") or "").strip()
-        state = str(query.get("state", "") or "").strip()
         if not code:
             raise MetaOAuthError("Meta OAuth callback is missing code.")
-        state_payload = self._verify_state(state)
         redirect_uri = str(state_payload.get("redirect_uri") or self.redirect_uri())
         short_token = self._exchange_code_for_token(code, redirect_uri)
         token = self._exchange_long_lived_token(short_token) or short_token
@@ -138,12 +134,19 @@ class MetaOAuthService:
             raise MetaOAuthError("Invalid Meta OAuth state payload.") from exc
         if payload.get("provider") != META_PROVIDER:
             raise MetaOAuthError("Invalid Meta OAuth state provider.")
+        state_id = str(payload.get("jti", "") or "").strip()
+        if not state_id:
+            raise MetaOAuthError("Invalid Meta OAuth state id.")
         try:
             issued_at = int(payload.get("iat") or 0)
         except (TypeError, ValueError) as exc:
             raise MetaOAuthError("Invalid Meta OAuth state timestamp.") from exc
         if int(time.time()) - issued_at > self._settings.meta_oauth_state_ttl_seconds:
             raise MetaOAuthError("Meta OAuth state expired.")
+        try:
+            self._store.consume_oauth_state(META_PROVIDER, state_id)
+        except ValueError as exc:
+            raise MetaOAuthError(str(exc)) from exc
         return payload
 
     def _exchange_code_for_token(self, code: str, redirect_uri: str) -> str:

@@ -91,6 +91,13 @@ AD_MCP_CONNECTIONS_FALLBACK_TO_LOCAL=false
 
 OAuth env variables описаны в [ENVIRONMENT_RU.md](ENVIRONMENT_RU.md).
 
+После создания `.env` ограничьте права:
+
+```bash
+sudo chown adforge:adforge /opt/adforge-mcp/.env
+sudo chmod 600 /opt/adforge-mcp/.env
+```
+
 ## Systemd запуск
 
 Скопировать примеры:
@@ -132,6 +139,7 @@ curl https://your-domain.com/ready
 curl -i https://your-domain.com/api/diagnostics
 curl -H "Authorization: Bearer <BETA_TOKEN>" https://your-domain.com/api/diagnostics
 curl -H "Authorization: Bearer <BETA_TOKEN>" https://your-domain.com/api/diagnostics/mcp
+curl -H "Authorization: Bearer <BETA_TOKEN>" https://your-domain.com/api/diagnostics/security
 ```
 
 Запрос без token должен получить `401` или `503`, если token не настроен. Запрос с token должен вернуть JSON diagnostics.
@@ -195,6 +203,8 @@ sudo journalctl -u adforge-mcp-http -f
 ```
 
 Raw access/refresh tokens, client secrets и developer tokens не должны попадать в logs.
+
+Security hardening checklist: [SECURITY_HARDENING_RU.md](SECURITY_HARDENING_RU.md).
 
 ## Backup
 

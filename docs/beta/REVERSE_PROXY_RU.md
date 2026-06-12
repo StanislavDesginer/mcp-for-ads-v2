@@ -16,6 +16,13 @@ AdForge MCP beta публикуется через reverse proxy. Web dashboard 
 deploy/nginx.adforge-mcp.example.conf
 ```
 
+Пример включает:
+
+- rate limiting для API, OAuth и MCP;
+- `proxy_buffering off` для `/mcp`;
+- запрет доступа к private directories;
+- CSP/security headers.
+
 Минимальная схема:
 
 ```nginx
@@ -49,6 +56,8 @@ server {
     location ~ /(tokens|secrets|logs|config)/ { deny all; }
 }
 ```
+
+Для beta не включайте wildcard CORS. Dashboard и API должны работать same-origin через один публичный домен.
 
 ## HTTPS через Let's Encrypt
 
@@ -91,7 +100,22 @@ Web server уже выставляет базовые headers, но reverse prox
 add_header X-Content-Type-Options nosniff always;
 add_header X-Frame-Options DENY always;
 add_header Referrer-Policy no-referrer always;
+add_header Cross-Origin-Resource-Policy same-origin always;
+add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
 ```
+
+## Rate limiting
+
+Пример:
+
+```nginx
+limit_req_zone $binary_remote_addr zone=adforge_api:10m rate=60r/m;
+limit_req_zone $binary_remote_addr zone=adforge_oauth:10m rate=20r/m;
+limit_req_zone $binary_remote_addr zone=adforge_mcp:10m rate=120r/m;
+```
+
+Для production значения нужно подобрать по реальной нагрузке MCP-клиентов.
 
 ## Что нельзя публиковать
 

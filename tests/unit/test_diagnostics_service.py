@@ -107,6 +107,48 @@ def test_readiness_fails_without_required_beta_token(tmp_path: Path) -> None:
     assert payload["checks"]["mcp_transport"]["status"] == "error"
 
 
+def test_security_diagnostics_exposes_posture_without_secrets(tmp_path: Path) -> None:
+    settings = Settings(
+        project_root=tmp_path,
+        env="production",
+        web_api_token="secret-token",
+        public_base_url="https://adforge.example",
+        google_oauth_client_id="client-id",
+        google_oauth_client_secret="client-secret",
+        google_ads_developer_token="developer-token",
+        connection_store_path="tokens/connections.json",
+        connections_fallback_to_local=False,
+    )
+    HostedConnectionStore(settings.connection_store_file).save_provider_config(
+        "google_ads",
+        {
+            "provider": "google_ads",
+            "accounts": [
+                {
+                    "account_id": "1234567890",
+                    "refresh_token": "refresh-secret",
+                    "developer_token": "developer-token",
+                    "oauth_client_secret": "client-secret",
+                }
+            ],
+        },
+    )
+
+    payload = DiagnosticsService(settings).security()
+    text = str(payload)
+
+    assert payload["beta_token_configured"] is True
+    assert payload["preview_only"] is True
+    assert payload["live_writes_enabled"] is False
+    assert payload["connections_storage_accessible"] is True
+    assert payload["public_mcp_url_configured"] is True
+    assert payload["oauth_provider_env_present"]["google_ads"]["AD_MCP_GOOGLE_OAUTH_CLIENT_SECRET"] == "present"
+    assert "secret-token" not in text
+    assert "client-secret" not in text
+    assert "developer-token" not in text
+    assert "refresh-secret" not in text
+
+
 def test_platform_live_diagnostics_return_not_available_without_fake_data(tmp_path: Path) -> None:
     settings = Settings(project_root=tmp_path, connection_store_path="tokens/connections.json", connections_fallback_to_local=False)
     HostedConnectionStore(settings.connection_store_file).save_provider_config(

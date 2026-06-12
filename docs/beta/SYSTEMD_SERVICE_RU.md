@@ -62,4 +62,13 @@ Unit examples включают:
 - `ProtectSystem=full`;
 - `ReadWritePaths=/opt/adforge-mcp/tokens /opt/adforge-mcp/logs`.
 
+Сервисы не должны запускаться от `root`. `.env` и `tokens/` должны принадлежать service user:
+
+```bash
+sudo chown adforge:adforge /opt/adforge-mcp/.env
+sudo chmod 600 /opt/adforge-mcp/.env
+sudo chown -R adforge:adforge /opt/adforge-mcp/tokens
+sudo chmod 700 /opt/adforge-mcp/tokens
+```
+
 Если путь установки отличается от `/opt/adforge-mcp`, обновите `WorkingDirectory`, `EnvironmentFile`, `ExecStart` и `ReadWritePaths`.

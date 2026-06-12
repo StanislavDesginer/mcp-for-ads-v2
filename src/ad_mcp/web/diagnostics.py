@@ -159,6 +159,7 @@ class DiagnosticsService:
             },
             "mcp": mcp,
             "connections": connections,
+            "security": self.security(),
             "platforms": platforms["platforms"],
             "missing_required_env": missing_env,
             "issues": issues,
@@ -304,6 +305,37 @@ class DiagnosticsService:
                 }
                 for provider in PROVIDER_NAMES
             ],
+        }
+
+    def security(self) -> dict[str, Any]:
+        connections = self.connections()
+        storage = connections["storage"]
+        mcp = self.mcp()
+        return {
+            "status": "ok" if self.settings.preview_only and bool(self.settings.web_api_token.strip()) else "needs_attention",
+            "beta_token_configured": bool(self.settings.web_api_token.strip()),
+            "api_auth_required": bool(self.settings.web_api_token.strip()) or self.settings.env.lower() == "production" or is_network_exposed_host(self.settings.web_host),
+            "preview_only": self.settings.preview_only,
+            "live_writes_enabled": False,
+            "storage_path_configured": bool(str(self.settings.connection_store_path).strip()),
+            "connections_storage_accessible": bool(storage.get("readable") and storage.get("valid_format")),
+            "public_mcp_url_configured": bool(self.settings.public_base_url.strip() or self.settings.mcp_public_url.strip()),
+            "dangerous_debug_mode_enabled": False,
+            "secrets_redacted": True,
+            "tokens_returned": False,
+            "cors_policy": "same-origin",
+            "cache_control": "no-store",
+            "oauth_provider_env_present": {
+                provider: {
+                    item["name"]: item["status"]
+                    for item in _env_status(self.settings, OAUTH_REQUIRED_ENV.get(provider, ()))
+                }
+                for provider in PROVIDER_NAMES
+            },
+            "mcp_transport": {
+                "auth_required": mcp.get("transport", {}).get("auth_required"),
+                "token_configured": mcp.get("transport", {}).get("token_configured"),
+            },
         }
 
     def mcp(self) -> dict[str, Any]:
