@@ -8,6 +8,9 @@
 - [BETA_ACCEPTANCE_CHECKLIST_RU.md](BETA_ACCEPTANCE_CHECKLIST_RU.md) - критерии приемки beta.
 - [BETA_DEMO_SCRIPT_RU.md](BETA_DEMO_SCRIPT_RU.md) - короткий сценарий демонстрации.
 - [GO_NO_GO_RU.md](GO_NO_GO_RU.md) - решение GO / CONDITIONAL GO / NO-GO.
+- [LIVE_VPS_RUNBOOK_RU.md](LIVE_VPS_RUNBOOK_RU.md) - live VPS deployment runbook.
+- [LIVE_VPS_COMMANDS_RU.md](LIVE_VPS_COMMANDS_RU.md) - copy-paste команды для оператора.
+- [../../deploy/adforge-mcp.env.example](../../deploy/adforge-mcp.env.example) - env template для VPS.
 
 ## A. Server / deployment
 

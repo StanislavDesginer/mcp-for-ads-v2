@@ -15,6 +15,10 @@ def is_network_exposed_host(host: str) -> bool:
     return host.strip().lower() in {"0.0.0.0", "::", "[::]"}
 
 
+def is_strict_auth_env(env: str) -> bool:
+    return env.strip().lower() in {"beta", "production"}
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="AD_MCP_", extra="ignore")
 

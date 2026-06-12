@@ -183,6 +183,7 @@ def test_beta_capabilities_are_safe_and_hosted_scoped(tmp_path: Path) -> None:
     assert payload["scope"]["customer_local_setup_required"] is False
     assert payload["preview_only"]["enabled"] is True
     assert payload["preview_only"]["live_writes_enabled"] is False
+    assert payload["security"]["mcp_public_url_configured"] is True
     assert payload["security"]["tokens_returned"] is False
     assert payload["mcp"]["url"] == "https://adforge.example/mcp"
     assert "secret-token" not in text

@@ -126,6 +126,36 @@ def _check_security_posture(security: dict[str, Any] | None) -> Check:
     return Check("security_diagnostics_preview_only_posture", not mismatches, None, "mismatches=" + ",".join(mismatches))
 
 
+def _check_strict_security(security: dict[str, Any] | None) -> Check:
+    security = security or {}
+    expected = {
+        "api_auth_required": True,
+        "preview_only": True,
+        "live_writes_enabled": False,
+        "tokens_returned": False,
+    }
+    mismatches = [key for key, value in expected.items() if security.get(key) is not value]
+    return Check("strict_deploy_security_posture", not mismatches, None, "mismatches=" + ",".join(mismatches))
+
+
+def _check_strict_capabilities(capabilities: dict[str, Any] | None) -> Check:
+    capabilities = capabilities or {}
+    security = capabilities.get("security") if isinstance(capabilities.get("security"), dict) else {}
+    mcp = capabilities.get("mcp") if isinstance(capabilities.get("mcp"), dict) else {}
+    ok = (
+        capabilities.get("mode") == "hosted_beta"
+        and security.get("mcp_public_url_configured") is True
+        and security.get("tokens_returned") is False
+        and str(mcp.get("url") or "").startswith(("https://", "http://"))
+    )
+    detail = (
+        f"mode={capabilities.get('mode')} "
+        f"mcp_public_url_configured={security.get('mcp_public_url_configured')} "
+        f"mcp_url={mcp.get('url') or '<missing>'}"
+    )
+    return Check("strict_deploy_capabilities", ok, None, detail)
+
+
 def _check_public_mcp_url(mcp: dict[str, Any] | None) -> Check:
     transport = (mcp or {}).get("transport", {})
     url = str(transport.get("url") or "")
@@ -151,6 +181,9 @@ def _check_mcp_endpoint(base_url: str, token: str, endpoint_path: str) -> Check:
     status, data, raw = _request_json(base_url, endpoint_path, token=token, method="POST", body=request_body)
     if status in {401, 403, 404, 501, 502, 503, 504, 0}:
         return Check("hosted_mcp_endpoint", False, status, raw, data)
+    raw_lower = raw.lower()
+    if "legacy web process does not serve mcp traffic" in raw_lower or "mcp_transport_not_served_by_web_process" in raw_lower:
+        return Check("hosted_mcp_endpoint", False, status, "MCP endpoint returned the web placeholder instead of the hosted MCP transport.", data)
     tools_count = None
     if isinstance(data, dict):
         result = data.get("result") if isinstance(data.get("result"), dict) else {}
@@ -188,6 +221,7 @@ def main() -> int:
     parser.add_argument("--skip-oauth", action="store_true", help="Skip OAuth diagnostics endpoint.")
     parser.add_argument("--mcp-path", default="/mcp", help="Hosted MCP endpoint path. Default: /mcp.")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS, help="HTTP timeout in seconds.")
+    parser.add_argument("--strict-deploy", action="store_true", help="Run stricter VPS deployment assertions. Does not run live provider calls without --live.")
     args = parser.parse_args()
 
     if args.timeout != DEFAULT_TIMEOUT_SECONDS:
@@ -222,6 +256,9 @@ def main() -> int:
     checks.append(_check_live_provider_default(args.live, diagnostics.data))
     checks.append(_check_mcp_token_gate(args.base_url, args.mcp_path))
     checks.append(_check_mcp_endpoint(args.base_url, args.token, args.mcp_path))
+    if args.strict_deploy:
+        checks.append(_check_strict_security(security_diagnostics.data))
+        checks.append(_check_strict_capabilities(capabilities.data))
 
     _print_report(checks)
     return 0 if all(check.ok for check in checks) else 1

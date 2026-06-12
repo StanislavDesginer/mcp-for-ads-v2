@@ -2,14 +2,20 @@
 
 Этот документ описывает production-like beta запуск AdForge MCP на VPS/WPS. GitHub clone и настройку сервера делает оператор/разработчик проекта. Beta-клиент не скачивает репозиторий и не запускает MCP локально.
 
+Для реального первого deploy используйте:
+
+- [LIVE_VPS_RUNBOOK_RU.md](LIVE_VPS_RUNBOOK_RU.md) - полный пошаговый runbook.
+- [LIVE_VPS_COMMANDS_RU.md](LIVE_VPS_COMMANDS_RU.md) - copy-paste команды для оператора.
+- [../../deploy/adforge-mcp.env.example](../../deploy/adforge-mcp.env.example) - live env template без секретов.
+
 ## Архитектура beta deployment
 
 - Web dashboard/API: `127.0.0.1:8765`.
 - Hosted MCP transport: `127.0.0.1:8766/mcp`.
 - Reverse proxy: Nginx или Caddy на публичном домене.
 - HTTPS: Let's Encrypt.
-- Runtime secrets: только в `.env` на сервере.
-- OAuth connection storage: `tokens/connections.json`.
+- Runtime secrets: только в `/etc/adforge-mcp/adforge-mcp.env` на сервере.
+- OAuth connection storage: `/var/lib/adforge-mcp/connections.json`.
 - Safety: `AD_MCP_PREVIEW_ONLY=true`.
 
 ## Требования к серверу
@@ -28,15 +34,16 @@ Node.js на VPS не нужен для runtime. Он нужен только р
 
 ```bash
 sudo apt update
-sudo apt install -y git python3.11 python3.11-venv nginx certbot python3-certbot-nginx
+sudo apt install -y git python3.11 python3.11-venv nginx certbot python3-certbot-nginx openssl
 ```
 
 ## Пользователь сервиса
 
 ```bash
 sudo useradd --system --create-home --home-dir /opt/adforge-mcp --shell /usr/sbin/nologin adforge
-sudo mkdir -p /opt/adforge-mcp
-sudo chown -R adforge:adforge /opt/adforge-mcp
+sudo mkdir -p /opt/adforge-mcp /etc/adforge-mcp /var/lib/adforge-mcp /var/log/adforge-mcp
+sudo chown -R adforge:adforge /opt/adforge-mcp /var/lib/adforge-mcp /var/log/adforge-mcp
+sudo chmod 750 /etc/adforge-mcp /var/lib/adforge-mcp /var/log/adforge-mcp
 ```
 
 ## Клонирование репозитория
@@ -61,21 +68,22 @@ sudo -u adforge ./.venv/bin/python -m pip install -e ".[google,meta]"
 ## Runtime directories
 
 ```bash
-sudo -u adforge mkdir -p /opt/adforge-mcp/tokens /opt/adforge-mcp/logs
-sudo chmod 700 /opt/adforge-mcp/tokens
+sudo -u adforge mkdir -p /var/lib/adforge-mcp /var/log/adforge-mcp
+sudo chmod 750 /var/lib/adforge-mcp /var/log/adforge-mcp
 ```
 
-## Настройка `.env`
+## Настройка env file
 
 ```bash
-sudo -u adforge cp /opt/adforge-mcp/.env.example /opt/adforge-mcp/.env
-sudo -u adforge nano /opt/adforge-mcp/.env
+sudo cp /opt/adforge-mcp/deploy/adforge-mcp.env.example /etc/adforge-mcp/adforge-mcp.env
+openssl rand -hex 32
+sudo nano /etc/adforge-mcp/adforge-mcp.env
 ```
 
 Минимальный production-like beta набор:
 
 ```dotenv
-AD_MCP_ENV=production
+AD_MCP_ENV=beta
 AD_MCP_LOG_LEVEL=INFO
 AD_MCP_WEB_HOST=127.0.0.1
 AD_MCP_WEB_PORT=8765
@@ -83,19 +91,20 @@ AD_MCP_MCP_HTTP_HOST=127.0.0.1
 AD_MCP_MCP_HTTP_PORT=8766
 AD_MCP_MCP_ENDPOINT_PATH=/mcp
 AD_MCP_PUBLIC_BASE_URL=https://your-domain.com
+AD_MCP_MCP_PUBLIC_URL=https://your-domain.com/mcp
 AD_MCP_WEB_API_TOKEN=replace-with-strong-beta-token
 AD_MCP_PREVIEW_ONLY=true
-AD_MCP_CONNECTION_STORE_PATH=tokens/connections.json
+AD_MCP_CONNECTION_STORE_PATH=/var/lib/adforge-mcp/connections.json
 AD_MCP_CONNECTIONS_FALLBACK_TO_LOCAL=false
 ```
 
 OAuth env variables описаны в [ENVIRONMENT_RU.md](ENVIRONMENT_RU.md).
 
-После создания `.env` ограничьте права:
+После создания env file ограничьте права:
 
 ```bash
-sudo chown adforge:adforge /opt/adforge-mcp/.env
-sudo chmod 600 /opt/adforge-mcp/.env
+sudo chown root:adforge /etc/adforge-mcp/adforge-mcp.env
+sudo chmod 640 /etc/adforge-mcp/adforge-mcp.env
 ```
 
 ## Systemd запуск
@@ -153,7 +162,8 @@ curl -H "Authorization: Bearer <BETA_TOKEN>" https://your-domain.com/api/beta/ca
 cd /opt/adforge-mcp
 sudo -u adforge ./.venv/bin/python scripts/smoke_hosted_beta.py \
   --base-url https://your-domain.com \
-  --token "<BETA_TOKEN>"
+  --token "<BETA_TOKEN>" \
+  --strict-deploy
 ```
 
 Live provider checks отдельно:
@@ -162,6 +172,7 @@ Live provider checks отдельно:
 sudo -u adforge ./.venv/bin/python scripts/smoke_hosted_beta.py \
   --base-url https://your-domain.com \
   --token "<BETA_TOKEN>" \
+  --strict-deploy \
   --live
 ```
 

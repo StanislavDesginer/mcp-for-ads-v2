@@ -42,6 +42,13 @@ def test_api_token_required_for_production_even_when_missing() -> None:
     assert _request_token_is_valid(_Headers({}), settings) is False
 
 
+def test_api_token_required_for_beta_even_when_missing() -> None:
+    settings = Settings(env="beta", web_host="127.0.0.1", web_api_token="")
+
+    assert _api_token_required(settings) is True
+    assert _request_token_is_valid(_Headers({}), settings) is False
+
+
 def test_bearer_token_authorizes_request() -> None:
     settings = Settings(env="production", web_api_token="secret-token")
 

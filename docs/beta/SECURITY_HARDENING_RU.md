@@ -129,7 +129,7 @@ CORS для beta: не включать wildcard CORS для sensitive endpoints
 
 ## Storage permissions
 
-`tokens/connections.json`:
+`/var/lib/adforge-mcp/connections.json`:
 
 - хранится вне static/public directories;
 - не отдается Nginx;
@@ -140,9 +140,9 @@ CORS для beta: не включать wildcard CORS для sensitive endpoints
 Рекомендуемые права:
 
 ```bash
-sudo chown -R adforge:adforge /opt/adforge-mcp/tokens
-sudo chmod 700 /opt/adforge-mcp/tokens
-sudo chmod 600 /opt/adforge-mcp/tokens/connections.json
+sudo chown -R adforge:adforge /var/lib/adforge-mcp
+sudo chmod 750 /var/lib/adforge-mcp
+sudo chmod 600 /var/lib/adforge-mcp/connections.json
 ```
 
 ## Security diagnostics

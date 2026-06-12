@@ -3,13 +3,13 @@
 В beta AdForge MCP хранит OAuth-подключения в JSON storage:
 
 ```text
-tokens/connections.json
+/var/lib/adforge-mcp/connections.json
 ```
 
 Путь задается через:
 
 ```dotenv
-AD_MCP_CONNECTION_STORE_PATH=tokens/connections.json
+AD_MCP_CONNECTION_STORE_PATH=/var/lib/adforge-mcp/connections.json
 ```
 
 ## Что хранится
@@ -24,9 +24,9 @@ AD_MCP_CONNECTION_STORE_PATH=tokens/connections.json
 ## Права доступа
 
 ```bash
-sudo chown -R adforge:adforge /opt/adforge-mcp/tokens
-sudo chmod 700 /opt/adforge-mcp/tokens
-sudo chmod 600 /opt/adforge-mcp/tokens/connections.json
+sudo chown -R adforge:adforge /var/lib/adforge-mcp
+sudo chmod 750 /var/lib/adforge-mcp
+sudo chmod 600 /var/lib/adforge-mcp/connections.json
 ```
 
 Если файла еще нет, приложение создаст его при первом OAuth save.
@@ -34,9 +34,10 @@ sudo chmod 600 /opt/adforge-mcp/tokens/connections.json
 ## Backup
 
 ```bash
-sudo install -d -m 700 -o adforge -g adforge /opt/adforge-mcp/backups
-sudo -u adforge cp /opt/adforge-mcp/tokens/connections.json \
-  /opt/adforge-mcp/backups/connections-$(date +%Y%m%d-%H%M%S).json
+sudo install -d -m 750 -o adforge -g adforge /var/backups/adforge-mcp
+sudo -u adforge cp /var/lib/adforge-mcp/connections.json \
+  /var/backups/adforge-mcp/connections-$(date +%Y%m%d-%H%M%S).json
+sudo chmod 600 /var/backups/adforge-mcp/connections-*.json
 ```
 
 Рекомендуется хранить backups в защищенном месте и ограничить доступ только оператору проекта.
@@ -52,9 +53,9 @@ sudo systemctl stop adforge-mcp-web adforge-mcp-http
 2. Восстановить файл:
 
 ```bash
-sudo -u adforge cp /opt/adforge-mcp/backups/connections-YYYYMMDD-HHMMSS.json \
-  /opt/adforge-mcp/tokens/connections.json
-sudo chmod 600 /opt/adforge-mcp/tokens/connections.json
+sudo -u adforge cp /var/backups/adforge-mcp/connections-YYYYMMDD-HHMMSS.json \
+  /var/lib/adforge-mcp/connections.json
+sudo chmod 600 /var/lib/adforge-mcp/connections.json
 ```
 
 3. Запустить сервисы:

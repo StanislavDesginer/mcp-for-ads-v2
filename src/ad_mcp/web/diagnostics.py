@@ -18,7 +18,7 @@ from ad_mcp.providers.google_ads.client import GoogleAdsProvider
 from ad_mcp.providers.meta_ads.client import MetaAdsProvider
 from ad_mcp.providers.tiktok_ads.client import TikTokAdsProvider
 from ad_mcp.providers.yandex_direct.client import YandexDirectProvider
-from ad_mcp.settings import Settings, is_network_exposed_host
+from ad_mcp.settings import Settings, is_network_exposed_host, is_strict_auth_env
 from ad_mcp.web.hosted import (
     OAUTH_OPTIONAL_ENV,
     OAUTH_PROVIDER_SLUGS,
@@ -154,7 +154,7 @@ class DiagnosticsService:
             "backend": {
                 "status": "ok",
                 "environment": self.settings.env,
-                "web_api_auth_required": bool(self.settings.web_api_token.strip()) or self.settings.env.lower() == "production" or is_network_exposed_host(self.settings.web_host),
+                "web_api_auth_required": bool(self.settings.web_api_token.strip()) or is_strict_auth_env(self.settings.env) or is_network_exposed_host(self.settings.web_host),
                 "preview_only": self.settings.preview_only,
             },
             "mcp": mcp,
@@ -170,7 +170,7 @@ class DiagnosticsService:
         issues: list[str] = []
         checks: dict[str, Any] = {}
 
-        token_required = bool(self.settings.web_api_token.strip()) or self.settings.env.lower() == "production" or is_network_exposed_host(self.settings.web_host)
+        token_required = bool(self.settings.web_api_token.strip()) or is_strict_auth_env(self.settings.env) or is_network_exposed_host(self.settings.web_host)
         token_configured = bool(self.settings.web_api_token.strip())
         checks["backend"] = {"status": "ok", "environment": self.settings.env}
         checks["beta_token"] = {
@@ -314,7 +314,7 @@ class DiagnosticsService:
         return {
             "status": "ok" if self.settings.preview_only and bool(self.settings.web_api_token.strip()) else "needs_attention",
             "beta_token_configured": bool(self.settings.web_api_token.strip()),
-            "api_auth_required": bool(self.settings.web_api_token.strip()) or self.settings.env.lower() == "production" or is_network_exposed_host(self.settings.web_host),
+            "api_auth_required": bool(self.settings.web_api_token.strip()) or is_strict_auth_env(self.settings.env) or is_network_exposed_host(self.settings.web_host),
             "preview_only": self.settings.preview_only,
             "live_writes_enabled": False,
             "storage_path_configured": bool(str(self.settings.connection_store_path).strip()),
@@ -341,7 +341,7 @@ class DiagnosticsService:
     def mcp(self) -> dict[str, Any]:
         info = self.hosted.mcp_connection_info()
         missing_tools: list[str] = []
-        auth_required = bool(self.settings.web_api_token.strip()) or self.settings.env.lower() == "production" or is_network_exposed_host(self.settings.mcp_http_host)
+        auth_required = bool(self.settings.web_api_token.strip()) or is_strict_auth_env(self.settings.env) or is_network_exposed_host(self.settings.mcp_http_host)
         token_configured = bool(self.settings.web_api_token.strip())
         transport_status = "available" if (not auth_required or token_configured) else "auth_missing"
         return {
@@ -413,6 +413,7 @@ class DiagnosticsService:
             "security": {
                 "beta_token_required": security["api_auth_required"],
                 "beta_token_configured": security["beta_token_configured"],
+                "mcp_public_url_configured": security["public_mcp_url_configured"],
                 "secrets_redacted": True,
                 "tokens_returned": False,
                 "cache_control": security["cache_control"],

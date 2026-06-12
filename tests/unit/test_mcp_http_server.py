@@ -36,6 +36,13 @@ def test_hosted_mcp_auth_requires_token_in_production(tmp_path) -> None:
         build_mcp_auth(settings)
 
 
+def test_hosted_mcp_auth_requires_token_in_beta(tmp_path) -> None:
+    settings = Settings(project_root=tmp_path, env="beta", web_api_token="", mcp_http_host="127.0.0.1")
+
+    with pytest.raises(RuntimeError, match="beta"):
+        build_mcp_auth(settings)
+
+
 def test_hosted_mcp_auth_requires_token_for_network_exposed_development_host(tmp_path) -> None:
     settings = Settings(project_root=tmp_path, env="development", web_api_token="", mcp_http_host="0.0.0.0")
 

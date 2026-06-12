@@ -20,6 +20,8 @@ deploy/nginx.adforge-mcp.example.conf
 
 - rate limiting для API, OAuth и MCP;
 - `proxy_buffering off` для `/mcp`;
+- явный forwarding `Authorization` header;
+- отдельный routing `/api/`, `/oauth/` и `/mcp`;
 - запрет доступа к private directories;
 - CSP/security headers.
 
@@ -32,28 +34,55 @@ server {
 
     client_max_body_size 1m;
 
-    location /mcp {
+    location ^~ /mcp {
         proxy_pass http://127.0.0.1:8766;
         proxy_http_version 1.1;
         proxy_buffering off;
         proxy_read_timeout 300s;
         proxy_send_timeout 300s;
+        proxy_set_header Authorization $http_authorization;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Port $server_port;
+    }
+
+    location ^~ /api/ {
+        proxy_pass http://127.0.0.1:8765;
+        proxy_http_version 1.1;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Port $server_port;
+    }
+
+    location ^~ /oauth/ {
+        proxy_pass http://127.0.0.1:8765;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Port $server_port;
     }
 
     location / {
         proxy_pass http://127.0.0.1:8765;
         proxy_http_version 1.1;
+        proxy_set_header Authorization $http_authorization;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Port $server_port;
     }
 
     location ~ /\.(env|git|ssh) { deny all; }
-    location ~ /(tokens|secrets|logs|config)/ { deny all; }
+    location ~ /(tokens|secrets|logs|config|\.venv|deploy)/ { deny all; }
 }
 ```
 
@@ -78,8 +107,11 @@ curl -I https://your-domain.com/ready
 Обязательно передавать:
 
 - `Host`;
+- `Authorization`;
 - `X-Forwarded-For`;
+- `X-Forwarded-Host`;
 - `X-Forwarded-Proto`;
+- `X-Forwarded-Port`;
 - `X-Real-IP`, если используется.
 
 ## MCP timeouts
@@ -91,6 +123,12 @@ curl -I https://your-domain.com/ready
 - `proxy_send_timeout 300s`.
 
 Это важно для Streamable HTTP transport.
+
+Проверка, что `/mcp` ведет на настоящий MCP transport, а не web placeholder:
+
+```bash
+python scripts/smoke_hosted_beta.py --base-url https://your-domain.com --token "<BETA_TOKEN>" --strict-deploy
+```
 
 ## Security headers
 
@@ -126,6 +164,8 @@ limit_req_zone $binary_remote_addr zone=adforge_mcp:10m rate=120r/m;
 - `tokens/`;
 - `secrets/`;
 - `logs/`;
+- `deploy/`;
+- `.venv/`;
 - raw config с секретами.
 
 ## Caddy alternative

@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlparse
 
 from ad_mcp.core.errors import AdMCPError, normalize_error
 from ad_mcp.core.redaction import redact_secret_text
-from ad_mcp.settings import Settings, is_network_exposed_host
+from ad_mcp.settings import Settings, is_network_exposed_host, is_strict_auth_env
 from ad_mcp.web.diagnostics import DiagnosticsService
 from ad_mcp.web.hosted import HostedConnectionService
 from ad_mcp.web.service import MetaDashboardService
@@ -25,7 +25,7 @@ TOKEN_HEADER = "X-AD-MCP-BETA-TOKEN"
 
 
 def _api_token_required(settings: Settings) -> bool:
-    return bool(settings.web_api_token.strip()) or settings.env.lower() == "production" or is_network_exposed_host(settings.web_host)
+    return bool(settings.web_api_token.strip()) or is_strict_auth_env(settings.env) or is_network_exposed_host(settings.web_host)
 
 
 def _extract_request_token(headers) -> str:
@@ -416,7 +416,7 @@ def main() -> None:
     AdsWebHandler.hosted = HostedConnectionService(settings)
     AdsWebHandler.service = MetaDashboardService(settings)
     if _api_token_required(settings) and not settings.web_api_token.strip():
-        LOGGER.warning("AD_MCP_WEB_API_TOKEN is required for production web API access but is not configured.")
+        LOGGER.warning("AD_MCP_WEB_API_TOKEN is required for beta/production web API access but is not configured.")
     server = ThreadingHTTPServer((host, port), AdsWebHandler)
     print(f"Meta MCP web UI running at http://{host}:{port}")
     server.serve_forever()

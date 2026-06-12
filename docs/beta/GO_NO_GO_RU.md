@@ -7,6 +7,8 @@
 Решение `GO` можно принять, если выполнены все условия:
 
 - hosted deployment запущен на VPS/WPS;
+- live deploy выполнен по [LIVE_VPS_RUNBOOK_RU.md](LIVE_VPS_RUNBOOK_RU.md);
+- env file создан на основе [../../deploy/adforge-mcp.env.example](../../deploy/adforge-mcp.env.example);
 - dashboard открывается по HTTPS;
 - hosted MCP endpoint доступен по HTTPS;
 - `/health` и `/ready` работают;
@@ -23,6 +25,7 @@
 - preview tools возвращают `will_apply=false`;
 - `commit_preview` заблокирован;
 - smoke checks и unit tests проходят.
+- `scripts/smoke_hosted_beta.py --strict-deploy` проходит на реальном домене.
 
 ## No-go
 
@@ -67,6 +70,7 @@
 
 - [BETA_ACCEPTANCE_CHECKLIST_RU.md](BETA_ACCEPTANCE_CHECKLIST_RU.md);
 - [END_TO_END_BETA_VALIDATION_RU.md](END_TO_END_BETA_VALIDATION_RU.md).
+- [LIVE_VPS_COMMANDS_RU.md](LIVE_VPS_COMMANDS_RU.md).
 
 Итог:
 

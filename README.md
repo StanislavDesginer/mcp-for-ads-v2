@@ -61,6 +61,8 @@ AdForge MCP - hosted MCP-сервис для безопасной работы �
 - [docs/beta/BETA_DEMO_SCRIPT_RU.md](docs/beta/BETA_DEMO_SCRIPT_RU.md) - demo script for a short beta walkthrough.
 - [docs/beta/BETA_CAPABILITIES_RU.md](docs/beta/BETA_CAPABILITIES_RU.md) - safe `/api/beta/capabilities` reference.
 - [docs/beta/GO_NO_GO_RU.md](docs/beta/GO_NO_GO_RU.md) - go/no-go criteria for hosted beta.
+- [docs/beta/LIVE_VPS_RUNBOOK_RU.md](docs/beta/LIVE_VPS_RUNBOOK_RU.md) - live VPS/WPS deployment runbook.
+- [docs/beta/LIVE_VPS_COMMANDS_RU.md](docs/beta/LIVE_VPS_COMMANDS_RU.md) - copy-paste live deployment commands.
 - [docs/beta/BETA_READY_MVP_RU.md](docs/beta/BETA_READY_MVP_RU.md) - главный scope beta-ready MVP.
 - [docs/beta/DASHBOARD_CONNECTIONS_RU.md](docs/beta/DASHBOARD_CONNECTIONS_RU.md) - подключение рекламных платформ через dashboard/OAuth.
 - [docs/beta/CODEX_MCP_SETUP_RU.md](docs/beta/CODEX_MCP_SETUP_RU.md) - подключение hosted MCP в Codex.
@@ -75,6 +77,7 @@ AdForge MCP - hosted MCP-сервис для безопасной работы �
 - [docs/beta/REVERSE_PROXY_RU.md](docs/beta/REVERSE_PROXY_RU.md) - Nginx/Caddy, HTTPS и proxy routing.
 - [docs/beta/SYSTEMD_SERVICE_RU.md](docs/beta/SYSTEMD_SERVICE_RU.md) - systemd unit setup.
 - [docs/beta/STORAGE_AND_BACKUP_RU.md](docs/beta/STORAGE_AND_BACKUP_RU.md) - storage, backup и restore.
+- [deploy/adforge-mcp.env.example](deploy/adforge-mcp.env.example) - VPS env template without real secrets.
 - [docs/beta/HOSTED_MCP_TRANSPORT_RU.md](docs/beta/HOSTED_MCP_TRANSPORT_RU.md) - hosted MCP transport.
 - [docs/beta/DIAGNOSTICS_RU.md](docs/beta/DIAGNOSTICS_RU.md) - backend/dashboard/MCP diagnostics.
 - [docs/beta/PARTNER_OAUTH_FLOWS_RU.md](docs/beta/PARTNER_OAUTH_FLOWS_RU.md) - OAuth flows Google/TikTok/Yandex.

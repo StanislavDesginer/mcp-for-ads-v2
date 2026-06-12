@@ -14,6 +14,8 @@ Docker можно добавить позже, но для текущего VPS 
 - `deploy/adforge-mcp-web.service.example`;
 - `deploy/adforge-mcp-http.service.example`.
 
+Live env template: [../../deploy/adforge-mcp.env.example](../../deploy/adforge-mcp.env.example).
+
 ## Установка
 
 ```bash
@@ -46,7 +48,7 @@ sudo journalctl -u adforge-mcp-web -f
 
 Логи не должны содержать raw tokens или client secrets.
 
-## Restart после изменения `.env`
+## Restart после изменения env file
 
 ```bash
 sudo systemctl restart adforge-mcp-web adforge-mcp-http
@@ -60,15 +62,16 @@ Unit examples включают:
 - `NoNewPrivileges=true`;
 - `PrivateTmp=true`;
 - `ProtectSystem=full`;
-- `ReadWritePaths=/opt/adforge-mcp/tokens /opt/adforge-mcp/logs`.
+- `ReadWritePaths=/var/lib/adforge-mcp /var/log/adforge-mcp`.
 
-Сервисы не должны запускаться от `root`. `.env` и `tokens/` должны принадлежать service user:
+Сервисы не должны запускаться от `root`. Live env file доступен root/adforge, а storage принадлежит service user:
 
 ```bash
-sudo chown adforge:adforge /opt/adforge-mcp/.env
-sudo chmod 600 /opt/adforge-mcp/.env
-sudo chown -R adforge:adforge /opt/adforge-mcp/tokens
-sudo chmod 700 /opt/adforge-mcp/tokens
+sudo chown root:adforge /etc/adforge-mcp/adforge-mcp.env
+sudo chmod 640 /etc/adforge-mcp/adforge-mcp.env
+sudo chown -R adforge:adforge /var/lib/adforge-mcp /var/log/adforge-mcp
+sudo chmod 750 /var/lib/adforge-mcp /var/log/adforge-mcp
+sudo chmod 600 /var/lib/adforge-mcp/connections.json
 ```
 
 Если путь установки отличается от `/opt/adforge-mcp`, обновите `WorkingDirectory`, `EnvironmentFile`, `ExecStart` и `ReadWritePaths`.

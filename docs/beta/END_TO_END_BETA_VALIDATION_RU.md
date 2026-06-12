@@ -7,6 +7,9 @@
 ## 1. Предварительные условия
 
 - VPS/WPS развернут по [VPS_DEPLOYMENT_RU.md](VPS_DEPLOYMENT_RU.md).
+- Для live запуска пройден [LIVE_VPS_RUNBOOK_RU.md](LIVE_VPS_RUNBOOK_RU.md).
+- Copy-paste команды сверены с [LIVE_VPS_COMMANDS_RU.md](LIVE_VPS_COMMANDS_RU.md).
+- Env file создан на основе [../../deploy/adforge-mcp.env.example](../../deploy/adforge-mcp.env.example).
 - HTTPS работает через reverse proxy.
 - Web dashboard доступен по публичному URL.
 - Hosted MCP endpoint доступен по публичному URL, обычно `https://your-domain.com/mcp`.
@@ -92,7 +95,8 @@ curl -i https://your-domain.com/mcp
 ```bash
 python scripts/smoke_hosted_beta.py \
   --base-url https://your-domain.com \
-  --token "<BETA_TOKEN>"
+  --token "<BETA_TOKEN>" \
+  --strict-deploy
 ```
 
 По умолчанию smoke script не запускает live provider checks. Для безопасной read-проверки реальных provider API используется явный флаг:
@@ -101,6 +105,7 @@ python scripts/smoke_hosted_beta.py \
 python scripts/smoke_hosted_beta.py \
   --base-url https://your-domain.com \
   --token "<BETA_TOKEN>" \
+  --strict-deploy \
   --live
 ```
 

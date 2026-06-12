@@ -20,7 +20,7 @@
 - [ ] `/health` возвращает `ok`.
 - [ ] `/ready` возвращает `ready`.
 - [ ] `/ready` не раскрывает секреты.
-- [ ] `scripts/smoke_hosted_beta.py` проходит без `--live`.
+- [ ] `scripts/smoke_hosted_beta.py --strict-deploy` проходит без `--live`.
 
 ## Access control
 

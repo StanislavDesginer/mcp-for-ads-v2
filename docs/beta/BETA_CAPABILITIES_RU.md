@@ -33,6 +33,7 @@ Authorization: Bearer <BETA_TOKEN>
 - `mcp.tools`;
 - `preview_only.enabled`;
 - `preview_only.live_writes_enabled=false`;
+- `security.mcp_public_url_configured`;
 - `security.tokens_returned=false`;
 - links на diagnostics endpoints.
 

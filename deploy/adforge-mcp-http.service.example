@@ -7,14 +7,16 @@ Type=simple
 User=adforge
 Group=adforge
 WorkingDirectory=/opt/adforge-mcp
-EnvironmentFile=/opt/adforge-mcp/.env
+EnvironmentFile=/etc/adforge-mcp/adforge-mcp.env
+Environment=AD_MCP_MCP_HTTP_HOST=127.0.0.1
+Environment=AD_MCP_MCP_HTTP_PORT=8766
 ExecStart=/opt/adforge-mcp/.venv/bin/ad-mcp-http
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
-ReadWritePaths=/opt/adforge-mcp/tokens /opt/adforge-mcp/logs
+ReadWritePaths=/var/lib/adforge-mcp /var/log/adforge-mcp
 
 [Install]
 WantedBy=multi-user.target

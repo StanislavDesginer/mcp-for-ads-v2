@@ -1,6 +1,6 @@
 # Environment variables
 
-Все реальные значения хранятся только в `.env` на VPS/WPS. В Git находятся только placeholders в [.env.example](../../.env.example).
+Все реальные значения хранятся только в env file на VPS/WPS. Для live beta используйте `/etc/adforge-mcp/adforge-mcp.env` на основе [../../deploy/adforge-mcp.env.example](../../deploy/adforge-mcp.env.example). В Git находятся только placeholders.
 
 Diagnostics может показывать env variables только как `present`/`missing`, без значений.
 
@@ -8,7 +8,7 @@ Diagnostics может показывать env variables только как `p
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `AD_MCP_ENV` | Да | Для production-like beta используйте `production`, чтобы auth checks были строгими. |
+| `AD_MCP_ENV` | Да | Для hosted beta используйте `beta`; `beta` и `production` включают строгие auth checks. |
 | `AD_MCP_LOG_LEVEL` | Нет | `INFO` по умолчанию. Для отладки можно временно `DEBUG`, без вывода секретов. |
 | `AD_MCP_AUDIT_LOG_PATH` | Нет | Путь к audit log, например `logs/audit.jsonl`. |
 | `AD_MCP_WEB_HOST` | Да | В beta на VPS: `127.0.0.1`. |
@@ -21,7 +21,7 @@ Diagnostics может показывать env variables только как `p
 | `AD_MCP_MCP_ENDPOINT_PATH` | Да | MCP path, обычно `/mcp`. |
 | `AD_MCP_MCP_HTTP_HOST` | Да | Внутренний host MCP transport, обычно `127.0.0.1`. |
 | `AD_MCP_MCP_HTTP_PORT` | Да | Внутренний port MCP transport, обычно `8766`. |
-| `AD_MCP_CONNECTION_STORE_PATH` | Да | Beta OAuth storage, обычно `tokens/connections.json`. |
+| `AD_MCP_CONNECTION_STORE_PATH` | Да | Beta OAuth storage, для live VPS обычно `/var/lib/adforge-mcp/connections.json`. |
 | `AD_MCP_CONNECTIONS_FALLBACK_TO_LOCAL` | Нет | Для hosted beta лучше `false`, чтобы не опираться на local `ads_config.yaml`. |
 | `AD_MCP_CONNECTIONS_CONFIG` | Нет | Local fallback config path для developers/server bootstrap. |
 | `AD_MCP_POLICY_CONFIG` | Нет | Safety policy config path. |

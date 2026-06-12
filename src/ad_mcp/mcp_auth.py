@@ -5,7 +5,7 @@ import secrets
 from mcp.server.auth.provider import AccessToken
 from mcp.server.auth.settings import AuthSettings
 
-from ad_mcp.settings import Settings, is_network_exposed_host
+from ad_mcp.settings import Settings, is_network_exposed_host, is_strict_auth_env
 
 
 MCP_SCOPE = "adforge:mcp"
@@ -22,7 +22,7 @@ class StaticBearerTokenVerifier:
 
 
 def mcp_token_required(settings: Settings) -> bool:
-    return bool(settings.web_api_token.strip()) or settings.env.lower() == "production" or is_network_exposed_host(settings.mcp_http_host)
+    return bool(settings.web_api_token.strip()) or is_strict_auth_env(settings.env) or is_network_exposed_host(settings.mcp_http_host)
 
 
 def build_mcp_auth(settings: Settings) -> tuple[AuthSettings | None, StaticBearerTokenVerifier | None]:
@@ -30,7 +30,7 @@ def build_mcp_auth(settings: Settings) -> tuple[AuthSettings | None, StaticBeare
         return None, None
     token = settings.web_api_token.strip()
     if not token:
-        raise RuntimeError("AD_MCP_WEB_API_TOKEN is required for hosted MCP when production or network-exposed.")
+        raise RuntimeError("AD_MCP_WEB_API_TOKEN is required for hosted MCP when beta, production, or network-exposed.")
     issuer_url = settings.public_base_or_local_mcp_url
     resource_server_url = settings.public_mcp_url
     return (
