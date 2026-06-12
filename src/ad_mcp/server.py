@@ -21,6 +21,7 @@ from ad_mcp.tools.account_read import build_account_read_tools
 from ad_mcp.tools.analytics_read import build_analytics_read_tools
 from ad_mcp.tools.beta_read import build_beta_read_tools
 from ad_mcp.tools.billing import build_billing_tools
+from ad_mcp.tools.dangerous_preview import build_dangerous_preview_tools
 from ad_mcp.tools.discovery import build_discovery_tools
 from ad_mcp.tools.intents import build_intent_tools
 from ad_mcp.tools.meta_specialist import build_meta_specialist_tools
@@ -64,7 +65,12 @@ def create_server(settings: Settings | None = None, *, hosted_http: bool = False
     settings = settings or Settings()
     settings.audit_log_file.parent.mkdir(parents=True, exist_ok=True)
     audit_logger = AuditLogger(settings.audit_log_file)
-    policy_manager = PolicyManager(load_safety_policy(settings.policy_config_path))
+    safety_policy = load_safety_policy(settings.policy_config_path)
+    if settings.preview_only:
+        safety_policy.preview_only = True
+        safety_policy.execution_mode = "simulated_no_write"
+        safety_policy.write_mode = "preview_only"
+    policy_manager = PolicyManager(safety_policy)
 
     provider_configs, provider_sources = load_runtime_provider_configs(settings)
     providers = {
@@ -101,6 +107,7 @@ def create_server(settings: Settings | None = None, *, hosted_http: bool = False
         build_reporting_tools(registry, policy_manager),
         build_object_tools(registry, policy_manager),
         build_write_preview_tools(registry, preview_manager, audit_logger, policy_manager),
+        build_dangerous_preview_tools(registry, preview_manager, audit_logger, policy_manager, settings),
         build_write_commit_tools(registry, preview_manager, audit_logger, policy_manager),
         build_intent_tools(registry, preview_manager, policy_manager),
         build_meta_specialist_tools(registry, preview_manager, policy_manager),
@@ -139,6 +146,7 @@ def create_server(settings: Settings | None = None, *, hosted_http: bool = False
                 "web_api_token_configured": bool(settings.web_api_token),
                 "write_mode": policy_manager.policy.write_mode,
                 "execution_mode": policy_manager.policy.execution_mode,
+                "preview_only": policy_manager.preview_only_enabled,
                 "allow_unknown_accounts": policy_manager.policy.allow_unknown_accounts,
                 "require_confirm_for": policy_manager.policy.require_confirm_for,
             },
@@ -147,7 +155,7 @@ def create_server(settings: Settings | None = None, *, hosted_http: bool = False
                 "server_imports": True,
                 "tools_register": True,
                 "diagnostics_available": True,
-                "live_writes_enabled": policy_manager.policy.execution_mode != "simulated_no_write",
+                "live_writes_enabled": not policy_manager.preview_only_enabled,
             },
         }
 

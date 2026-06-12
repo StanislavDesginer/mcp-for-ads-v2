@@ -33,13 +33,20 @@ from ad_mcp.storage.clickhouse import ClickHousePersistence
 
 
 _ENV_REF_RE = re.compile(r"\$\{([A-Z0-9_]+)(?::-([^}]*))?\}")
+PREVIEW_ONLY_REASON = "Beta MVP работает в preview-only mode. Реальные изменения отключены."
+PREVIEW_ONLY_NOTE = "Реальное изменение не выполнено."
 
 
 class MetaDashboardService:
     def __init__(self, settings: Settings | None = None) -> None:
         settings = settings or Settings()
         self._settings = settings
-        self._policy_manager = PolicyManager(load_safety_policy(settings.policy_config_path))
+        safety_policy = load_safety_policy(settings.policy_config_path)
+        if settings.preview_only:
+            safety_policy.preview_only = True
+            safety_policy.execution_mode = "simulated_no_write"
+            safety_policy.write_mode = "preview_only"
+        self._policy_manager = PolicyManager(safety_policy)
         provider_configs, provider_sources = load_runtime_provider_configs(settings)
         self._provider_sources = provider_sources
         provider_config = provider_configs["meta_ads"]
@@ -682,6 +689,14 @@ class MetaDashboardService:
             risk_flags=preview.risk_flags,
             provider_payload=preview.provider_payload,
         ).model_dump()
+        response.update(
+            {
+                "mode": "preview_only",
+                "will_apply": False,
+                "reason": PREVIEW_ONLY_REASON,
+                "note": PREVIEW_ONLY_NOTE,
+            }
+        )
         response["persistence"] = self._persistence.log_preview_action(response)
         return response
 

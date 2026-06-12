@@ -8,6 +8,7 @@ from ad_mcp.core.errors import PolicyViolationError
 
 
 class SafetyPolicy(BaseModel):
+    preview_only: bool = True
     write_mode: str = "preview_confirm"
     execution_mode: str = "simulated_no_write"
     allow_unknown_accounts: bool = False
@@ -20,6 +21,10 @@ class SafetyPolicy(BaseModel):
 class PolicyManager:
     def __init__(self, policy: SafetyPolicy) -> None:
         self.policy = policy
+
+    @property
+    def preview_only_enabled(self) -> bool:
+        return self.policy.preview_only or self.policy.execution_mode == "simulated_no_write"
 
     def validate_account_access(self, configured: bool) -> None:
         if not configured and not self.policy.allow_unknown_accounts:
@@ -48,7 +53,11 @@ class PolicyManager:
             )
 
     def ensure_simulated_no_write(self) -> None:
-        if self.policy.execution_mode != "simulated_no_write":
+        if not self.preview_only_enabled:
             raise PolicyViolationError(
                 f"Unsupported execution_mode='{self.policy.execution_mode}'. Only simulated_no_write is allowed in this build."
             )
+
+    def ensure_preview_only(self) -> None:
+        if not self.preview_only_enabled:
+            raise PolicyViolationError("PREVIEW_ONLY is disabled. Beta MVP requires preview-only mode for write actions.")

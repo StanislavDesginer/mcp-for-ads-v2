@@ -15,6 +15,10 @@ from ad_mcp.intents.create_campaign_from_brief import build_campaign_payload_fro
 from ad_mcp.tools._shared import validate_provider_account
 
 
+PREVIEW_ONLY_REASON = "Beta MVP работает в preview-only mode. Реальные изменения отключены."
+PREVIEW_ONLY_NOTE = "Реальное изменение не выполнено."
+
+
 def build_intent_tools(
     registry: CapabilityRegistry,
     preview_manager: PreviewManager,
@@ -31,7 +35,7 @@ def build_intent_tools(
             payload=payload,
         )
         preview_manager.create(preview)
-        return ObjectMutationResponse(
+        response = ObjectMutationResponse(
             status="preview",
             provider=provider,
             account_id=account_id,
@@ -42,6 +46,15 @@ def build_intent_tools(
             risk_flags=preview.risk_flags,
             provider_payload=preview.provider_payload,
         ).model_dump()
+        response.update(
+            {
+                "mode": "preview_only",
+                "will_apply": False,
+                "reason": PREVIEW_ONLY_REASON,
+                "note": PREVIEW_ONLY_NOTE,
+            }
+        )
+        return response
 
     def create_campaign_from_brief(provider: str, account_id: str, brief: dict) -> dict:
         return _preview(provider, account_id, "campaign", build_campaign_payload_from_brief(provider, brief))

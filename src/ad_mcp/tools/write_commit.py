@@ -15,7 +15,7 @@ def build_write_commit_tools(
     def commit_preview(preview_token: str) -> dict:
         preview = preview_manager.get(preview_token)
         policy_manager.validate_account_access(bool(registry.get_provider(preview.provider).get_account_config(preview.account_id)))
-        if policy_manager.policy.execution_mode == "simulated_no_write":
+        if policy_manager.preview_only_enabled:
             result = {
                 "status": "blocked",
                 "provider": preview.provider,
@@ -28,12 +28,12 @@ def build_write_commit_tools(
                 "provider_payload": preview.provider_payload,
                 "provider_response": {
                     "mode": "preview_only",
-                    "message": "Beta build is preview-only. No external mutation was executed.",
+                    "message": "Beta MVP is preview-only. No external mutation was executed.",
                 },
             }
             audit_logger.log("commit_preview_blocked", result)
             return result
-        policy_manager.ensure_simulated_no_write()
+        policy_manager.ensure_preview_only()
         preview = preview_manager.consume(preview_token)
         response = registry.get_provider(preview.provider).commit_preview(preview)
         result = response.model_dump()

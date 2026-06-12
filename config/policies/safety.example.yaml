@@ -1,3 +1,4 @@
+preview_only: true
 write_mode: preview_confirm
 execution_mode: simulated_no_write
 allow_unknown_accounts: false

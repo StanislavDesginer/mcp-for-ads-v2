@@ -8,6 +8,10 @@ from ad_mcp.core.preview_manager import PreviewManager
 from ad_mcp.tools._shared import validate_provider_account
 
 
+PREVIEW_ONLY_REASON = "Beta MVP работает в preview-only mode. Реальные изменения отключены."
+PREVIEW_ONLY_NOTE = "Реальное изменение не выполнено."
+
+
 def build_write_preview_tools(
     registry: CapabilityRegistry,
     preview_manager: PreviewManager,
@@ -36,6 +40,14 @@ def build_write_preview_tools(
             risk_flags=preview.risk_flags,
             provider_payload=preview.provider_payload,
         ).model_dump()
+        response.update(
+            {
+                "mode": "preview_only",
+                "will_apply": False,
+                "reason": PREVIEW_ONLY_REASON,
+                "note": PREVIEW_ONLY_NOTE,
+            }
+        )
         audit_logger.log(f"preview_{action}", response)
         return response
 

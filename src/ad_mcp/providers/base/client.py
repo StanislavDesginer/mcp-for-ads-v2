@@ -383,7 +383,7 @@ class BaseAdsProvider(ABC):
 
     def commit_preview(self, preview: PreviewRecord) -> ObjectMutationResponse:
         return ObjectMutationResponse(
-            status="committed",
+            status="blocked",
             provider=preview.provider,
             account_id=preview.account_id,
             object_type=preview.object_type,
@@ -392,9 +392,8 @@ class BaseAdsProvider(ABC):
             risk_flags=preview.risk_flags,
             provider_payload=preview.provider_payload,
             provider_response={
-                "mode": "simulated_no_write",
-                "message": "Provider write path is intentionally simulated. No external mutation was executed.",
+                "mode": "preview_only",
+                "message": "Beta MVP is preview-only. No external mutation was executed.",
                 "source_api": self.source_api,
-                "would_send": preview.provider_payload,
             },
         )

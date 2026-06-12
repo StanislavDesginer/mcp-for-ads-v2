@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     web_port: int = 8765
     web_api_token: str = ""
     web_max_body_bytes: int = 65536
+    preview_only: bool = True
     public_base_url: str = ""
     mcp_endpoint_path: str = "/mcp"
     mcp_http_host: str = "127.0.0.1"

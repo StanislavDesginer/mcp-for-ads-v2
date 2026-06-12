@@ -28,6 +28,8 @@ async def test_beta_diagnostics_tool_is_registered_and_safe() -> None:
     assert payload["status"] == "ok"
     assert payload["smoke_checks"]["diagnostics_available"] is True
     assert payload["security"]["execution_mode"] == "simulated_no_write"
+    assert payload["security"]["preview_only"] is True
+    assert payload["smoke_checks"]["live_writes_enabled"] is False
 
     meta_account = payload["providers"]["meta_ads"]["accounts"][0]
     assert set(meta_account) == {"name", "account_id", "status"}
@@ -92,6 +94,15 @@ async def test_beta_read_tools_are_registered_and_hide_connection_secrets(tmp_pa
         "get_campaign",
         "get_campaign_statuses",
         "get_basic_metrics",
+        "preview_pause_campaign",
+        "preview_resume_campaign",
+        "preview_change_campaign_budget",
+        "preview_change_campaign_name",
+        "preview_pause_adset_or_group",
+        "preview_resume_adset_or_group",
+        "preview_change_adset_or_group_budget",
+        "preview_pause_ad",
+        "preview_resume_ad",
     }.issubset(tool_names)
 
     accounts = _json_tool_payload(await mcp.call_tool("list_ad_accounts", {"platform": "meta_ads"}))
