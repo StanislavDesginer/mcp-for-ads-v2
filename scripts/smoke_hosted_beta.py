@@ -179,7 +179,7 @@ def _check_mcp_token_gate(base_url: str, endpoint_path: str) -> Check:
 def _check_mcp_endpoint(base_url: str, token: str, endpoint_path: str) -> Check:
     request_body = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
     status, data, raw = _request_json(base_url, endpoint_path, token=token, method="POST", body=request_body)
-    if status in {401, 403, 404, 501, 502, 503, 504, 0}:
+    if status in {401, 403, 404, 421, 501, 502, 503, 504, 0}:
         return Check("hosted_mcp_endpoint", False, status, raw, data)
     raw_lower = raw.lower()
     if "legacy web process does not serve mcp traffic" in raw_lower or "mcp_transport_not_served_by_web_process" in raw_lower:

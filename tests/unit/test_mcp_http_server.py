@@ -66,6 +66,33 @@ def test_hosted_mcp_app_protects_mcp_route_with_bearer_token(tmp_path) -> None:
     assert response.status_code == 401
 
 
+def test_hosted_mcp_app_allows_configured_public_host(tmp_path) -> None:
+    settings = Settings(
+        project_root=tmp_path,
+        env="beta",
+        web_api_token="secret-token",
+        public_base_url="https://adforge.example",
+        mcp_public_url="https://adforge.example/mcp",
+        mcp_http_host="127.0.0.1",
+        connections_config="missing.yaml",
+    )
+    app = create_http_app(settings)
+
+    with _test_client(app) as client:
+        response = client.post(
+            settings.mcp_route_path,
+            headers={
+                "Host": "adforge.example",
+                "Authorization": "Bearer secret-token",
+                "Accept": "application/json, text/event-stream",
+            },
+            json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+        )
+
+    assert response.status_code != 421
+    assert response.text != "Invalid Host header"
+
+
 def test_hosted_mcp_app_exposes_configured_route(tmp_path) -> None:
     settings = Settings(
         project_root=tmp_path,

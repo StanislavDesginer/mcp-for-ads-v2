@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from ad_mcp.core.auth_manager import AuthManager
 from ad_mcp.core.audit_logger import AuditLogger
@@ -62,6 +64,30 @@ def _provider_diagnostics(registry: CapabilityRegistry, provider_configs: dict[s
     return diagnostics
 
 
+def _mcp_transport_security(settings: Settings) -> TransportSecuritySettings | None:
+    if settings.mcp_http_host not in {"127.0.0.1", "localhost", "::1"}:
+        return None
+    allowed_hosts = {"127.0.0.1:*", "localhost:*", "[::1]:*"}
+    allowed_origins = {"http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"}
+    parsed = urlparse(settings.public_mcp_url)
+    if parsed.hostname:
+        allowed_hosts.add(parsed.hostname)
+        allowed_hosts.add(f"{parsed.hostname}:*")
+        if parsed.port:
+            allowed_hosts.add(f"{parsed.hostname}:{parsed.port}")
+        if parsed.scheme:
+            origin = f"{parsed.scheme}://{parsed.hostname}"
+            allowed_origins.add(origin)
+            allowed_origins.add(f"{origin}:*")
+            if parsed.port:
+                allowed_origins.add(f"{origin}:{parsed.port}")
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=sorted(allowed_hosts),
+        allowed_origins=sorted(allowed_origins),
+    )
+
+
 def create_server(settings: Settings | None = None, *, hosted_http: bool = False) -> FastMCP:
     settings = settings or Settings()
     settings.audit_log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -98,6 +124,7 @@ def create_server(settings: Settings | None = None, *, hosted_http: bool = False
         streamable_http_path=settings.mcp_route_path,
         auth=auth_settings,
         token_verifier=token_verifier,
+        transport_security=_mcp_transport_security(settings) if hosted_http else None,
     )
     toolsets = [
         build_discovery_tools(registry),
