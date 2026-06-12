@@ -149,6 +149,48 @@ def test_security_diagnostics_exposes_posture_without_secrets(tmp_path: Path) ->
     assert "refresh-secret" not in text
 
 
+def test_beta_capabilities_are_safe_and_hosted_scoped(tmp_path: Path) -> None:
+    settings = Settings(
+        project_root=tmp_path,
+        env="production",
+        web_api_token="secret-token",
+        public_base_url="https://adforge.example",
+        google_oauth_client_id="client-id",
+        google_oauth_client_secret="client-secret",
+        google_ads_developer_token="developer-token",
+        connection_store_path="tokens/connections.json",
+        connections_fallback_to_local=False,
+    )
+    HostedConnectionStore(settings.connection_store_file).save_provider_config(
+        "google_ads",
+        {
+            "provider": "google_ads",
+            "accounts": [
+                {
+                    "account_id": "1234567890",
+                    "refresh_token": "refresh-secret",
+                    "developer_token": "developer-token",
+                    "oauth_client_secret": "client-secret",
+                }
+            ],
+        },
+    )
+
+    payload = DiagnosticsService(settings).beta_capabilities()
+    text = str(payload)
+
+    assert payload["mode"] == "hosted_beta"
+    assert payload["scope"]["customer_local_setup_required"] is False
+    assert payload["preview_only"]["enabled"] is True
+    assert payload["preview_only"]["live_writes_enabled"] is False
+    assert payload["security"]["tokens_returned"] is False
+    assert payload["mcp"]["url"] == "https://adforge.example/mcp"
+    assert "secret-token" not in text
+    assert "client-secret" not in text
+    assert "developer-token" not in text
+    assert "refresh-secret" not in text
+
+
 def test_platform_live_diagnostics_return_not_available_without_fake_data(tmp_path: Path) -> None:
     settings = Settings(project_root=tmp_path, connection_store_path="tokens/connections.json", connections_fallback_to_local=False)
     HostedConnectionStore(settings.connection_store_file).save_provider_config(

@@ -168,6 +168,17 @@ Authorization: Bearer <BETA_TOKEN>
 - `secrets_redacted`;
 - `tokens_returned`.
 
+Capabilities endpoint:
+
+```http
+GET /api/beta/capabilities
+Authorization: Bearer <BETA_TOKEN>
+```
+
+Он возвращает beta-scope, MCP URL, список tools и preview-only posture без секретов. Подробнее: [BETA_CAPABILITIES_RU.md](BETA_CAPABILITIES_RU.md).
+
+Перед beta demo дополнительно пройти [END_TO_END_BETA_VALIDATION_RU.md](END_TO_END_BETA_VALIDATION_RU.md) и [GO_NO_GO_RU.md](GO_NO_GO_RU.md).
+
 ## Known beta limitations
 
 - Один beta token - это beta access model, не production user auth.

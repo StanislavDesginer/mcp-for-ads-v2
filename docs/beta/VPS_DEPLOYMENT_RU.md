@@ -140,9 +140,12 @@ curl -i https://your-domain.com/api/diagnostics
 curl -H "Authorization: Bearer <BETA_TOKEN>" https://your-domain.com/api/diagnostics
 curl -H "Authorization: Bearer <BETA_TOKEN>" https://your-domain.com/api/diagnostics/mcp
 curl -H "Authorization: Bearer <BETA_TOKEN>" https://your-domain.com/api/diagnostics/security
+curl -H "Authorization: Bearer <BETA_TOKEN>" https://your-domain.com/api/beta/capabilities
 ```
 
 Запрос без token должен получить `401` или `503`, если token не настроен. Запрос с token должен вернуть JSON diagnostics.
+
+Для полной проверки перед запуском используйте [END_TO_END_BETA_VALIDATION_RU.md](END_TO_END_BETA_VALIDATION_RU.md), [BETA_ACCEPTANCE_CHECKLIST_RU.md](BETA_ACCEPTANCE_CHECKLIST_RU.md) и [GO_NO_GO_RU.md](GO_NO_GO_RU.md).
 
 ## Smoke script
 

@@ -224,6 +224,8 @@ class AdsWebHandler(BaseHTTPRequestHandler):
                 return self._send_json(self.diagnostics.mcp())
             if route == "/api/diagnostics/security":
                 return self._send_json(self.diagnostics.security())
+            if route == "/api/beta/capabilities":
+                return self._send_json(self.diagnostics.beta_capabilities())
             if route == "/api/hosted/mcp-connection":
                 return self._send_json(self.hosted.mcp_connection_info())
             if route == "/api/hosted/connections":

@@ -362,6 +362,70 @@ class DiagnosticsService:
             "message": "Hosted MCP transport is configured. Use the MCP URL with bearer auth in a compatible client.",
         }
 
+    def beta_capabilities(self) -> dict[str, Any]:
+        platforms = self.platforms(live=False)["platforms"]
+        mcp = self.mcp()
+        security = self.security()
+        return {
+            "status": "ok",
+            "mode": "hosted_beta",
+            "service": "AdForge MCP",
+            "scope": {
+                "client_model": "hosted_dashboard_oauth_plus_hosted_mcp",
+                "customer_local_setup_required": False,
+                "primary_platforms": ["meta_ads", "google_ads"],
+                "limited_platforms": [
+                    {
+                        "provider": "tiktok_ads",
+                        "status": "limited_beta",
+                        "note": "OAuth onboarding is available; campaign and metrics reads may return not_available until live provider support is completed.",
+                    },
+                    {
+                        "provider": "yandex_direct",
+                        "status": "limited_beta",
+                        "note": "OAuth onboarding is available; campaign and metrics reads may return not_available until live provider support is completed.",
+                    },
+                ],
+            },
+            "platforms": [
+                {
+                    "provider": platform["provider"],
+                    "label": platform["label"],
+                    "status": platform["status"],
+                    "account_count": platform["account_count"],
+                    "oauth_start_endpoint": platform["actions"]["reconnect"],
+                    "diagnostics_endpoint": platform["actions"]["run_diagnostics"],
+                }
+                for platform in platforms
+            ],
+            "mcp": {
+                "transport": mcp["transport"]["type"],
+                "url": mcp["transport"]["url"],
+                "endpoint_path": mcp["transport"]["endpoint_path"],
+                "auth_required": mcp["transport"]["auth_required"],
+                "tools": mcp["tools"]["ready"],
+            },
+            "preview_only": {
+                "enabled": self.settings.preview_only,
+                "live_writes_enabled": False,
+                "write_actions": "preview_only",
+            },
+            "security": {
+                "beta_token_required": security["api_auth_required"],
+                "beta_token_configured": security["beta_token_configured"],
+                "secrets_redacted": True,
+                "tokens_returned": False,
+                "cache_control": security["cache_control"],
+            },
+            "diagnostics": {
+                "overview": "/api/diagnostics",
+                "platforms": "/api/diagnostics/platforms",
+                "connections": "/api/diagnostics/connections",
+                "mcp": "/api/diagnostics/mcp",
+                "security": "/api/diagnostics/security",
+            },
+        }
+
     def mcp_tool_summary(self, *, live: bool = False) -> dict[str, Any]:
         overview = self.overview(live=live)
         platforms = overview["platforms"]

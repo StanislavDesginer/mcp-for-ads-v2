@@ -70,9 +70,34 @@ def _check_ready(base_url: str) -> Check:
     return Check("ready", status == 200 and (data or {}).get("status") == "ready", status, raw, data)
 
 
+def _check_ready_does_not_expose_secrets(ready: Check, token: str) -> Check:
+    body = json.dumps(ready.data or {}, ensure_ascii=False) + ready.detail
+    lowered = body.lower()
+    blocked_markers = [
+        token,
+        "access_token:",
+        "access_token=",
+        "refresh_token:",
+        "refresh_token=",
+        "client_secret:",
+        "client_secret=",
+        "developer_token:",
+        "developer_token=",
+        "authorization:",
+        "bearer ",
+    ]
+    leaked = [marker for marker in blocked_markers if marker and marker.lower() in lowered]
+    return Check("ready_does_not_expose_secrets", not leaked, ready.status, "leaked_markers=" + ",".join(leaked[:3]))
+
+
 def _check_token_gate(base_url: str) -> Check:
     status, data, raw = _request_json(base_url, "/api/diagnostics")
-    return Check("beta_token_blocks_unauthorized", status in {401, 403, 503}, status, raw, data)
+    return Check("sensitive_endpoint_blocks_missing_token", status in {401, 403, 503}, status, raw, data)
+
+
+def _check_invalid_token_gate(base_url: str) -> Check:
+    status, data, raw = _request_json(base_url, "/api/diagnostics", token="invalid-beta-token")
+    return Check("sensitive_endpoint_blocks_invalid_token", status in {401, 403}, status, raw, data)
 
 
 def _check_authorized_api(base_url: str, token: str, path: str, *, live: bool = False) -> Check:
@@ -89,10 +114,42 @@ def _check_preview_only(diagnostics: dict[str, Any] | None, ready: dict[str, Any
     return Check("preview_only_enabled", ok, None, f"diagnostics={preview_from_diagnostics} ready={preview_from_ready}")
 
 
+def _check_security_posture(security: dict[str, Any] | None) -> Check:
+    security = security or {}
+    expected = {
+        "preview_only": True,
+        "live_writes_enabled": False,
+        "tokens_returned": False,
+        "secrets_redacted": True,
+    }
+    mismatches = [key for key, value in expected.items() if security.get(key) is not value]
+    return Check("security_diagnostics_preview_only_posture", not mismatches, None, "mismatches=" + ",".join(mismatches))
+
+
+def _check_public_mcp_url(mcp: dict[str, Any] | None) -> Check:
+    transport = (mcp or {}).get("transport", {})
+    url = str(transport.get("url") or "")
+    endpoint_path = str(transport.get("endpoint_path") or "")
+    ok = url.startswith(("https://", "http://")) and bool(endpoint_path)
+    return Check("diagnostics_exposes_public_mcp_url", ok, None, f"url={url or '<missing>'} endpoint_path={endpoint_path or '<missing>'}")
+
+
+def _check_live_provider_default(live: bool, diagnostics: dict[str, Any] | None) -> Check:
+    if live:
+        return Check("live_provider_checks_explicitly_enabled", True, None, "--live was passed by operator")
+    return Check("live_provider_checks_disabled_by_default", True, None, "--live was not passed")
+
+
+def _check_mcp_token_gate(base_url: str, endpoint_path: str) -> Check:
+    request_body = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+    status, data, raw = _request_json(base_url, endpoint_path, method="POST", body=request_body)
+    return Check("mcp_endpoint_blocks_missing_token", status in {401, 403, 503}, status, raw, data)
+
+
 def _check_mcp_endpoint(base_url: str, token: str, endpoint_path: str) -> Check:
     request_body = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
     status, data, raw = _request_json(base_url, endpoint_path, token=token, method="POST", body=request_body)
-    if status in {401, 403, 404, 502, 503, 504, 0}:
+    if status in {401, 403, 404, 501, 502, 503, 504, 0}:
         return Check("hosted_mcp_endpoint", False, status, raw, data)
     tools_count = None
     if isinstance(data, dict):
@@ -145,15 +202,25 @@ def main() -> int:
     checks.append(health)
     ready = _check_ready(args.base_url)
     checks.append(ready)
+    checks.append(_check_ready_does_not_expose_secrets(ready, args.token))
     checks.append(_check_token_gate(args.base_url))
+    checks.append(_check_invalid_token_gate(args.base_url))
 
     diagnostics = _check_authorized_api(args.base_url, args.token, "/api/diagnostics", live=args.live)
     checks.append(diagnostics)
-    checks.append(_check_authorized_api(args.base_url, args.token, "/api/diagnostics/mcp"))
-    checks.append(_check_authorized_api(args.base_url, args.token, "/api/diagnostics/security"))
+    mcp_diagnostics = _check_authorized_api(args.base_url, args.token, "/api/diagnostics/mcp")
+    checks.append(mcp_diagnostics)
+    security_diagnostics = _check_authorized_api(args.base_url, args.token, "/api/diagnostics/security")
+    checks.append(security_diagnostics)
+    capabilities = _check_authorized_api(args.base_url, args.token, "/api/beta/capabilities")
+    checks.append(capabilities)
     if not args.skip_oauth:
         checks.append(_check_authorized_api(args.base_url, args.token, "/api/hosted/oauth/diagnostics"))
     checks.append(_check_preview_only(diagnostics.data, ready.data))
+    checks.append(_check_security_posture(security_diagnostics.data))
+    checks.append(_check_public_mcp_url(mcp_diagnostics.data))
+    checks.append(_check_live_provider_default(args.live, diagnostics.data))
+    checks.append(_check_mcp_token_gate(args.base_url, args.mcp_path))
     checks.append(_check_mcp_endpoint(args.base_url, args.token, args.mcp_path))
 
     _print_report(checks)

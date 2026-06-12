@@ -2,6 +2,13 @@
 
 Этот чеклист нужен перед демонстрацией beta-ready MVP.
 
+Связанные документы этапа 9:
+
+- [END_TO_END_BETA_VALIDATION_RU.md](END_TO_END_BETA_VALIDATION_RU.md) - полная проверка от VPS до MCP-клиента.
+- [BETA_ACCEPTANCE_CHECKLIST_RU.md](BETA_ACCEPTANCE_CHECKLIST_RU.md) - критерии приемки beta.
+- [BETA_DEMO_SCRIPT_RU.md](BETA_DEMO_SCRIPT_RU.md) - короткий сценарий демонстрации.
+- [GO_NO_GO_RU.md](GO_NO_GO_RU.md) - решение GO / CONDITIONAL GO / NO-GO.
+
 ## A. Server / deployment
 
 - VPS deployment guide reviewed: [VPS_DEPLOYMENT_RU.md](VPS_DEPLOYMENT_RU.md).

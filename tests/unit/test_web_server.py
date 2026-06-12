@@ -105,6 +105,8 @@ def test_sensitive_endpoints_require_beta_token_and_health_is_public(tmp_path) -
         missing_status, missing = _get_json(base_url, "/api/diagnostics")
         invalid_status, invalid = _get_json(base_url, "/api/diagnostics", "wrong-token")
         pending_status, pending = _get_json(base_url, "/api/hosted/oauth/meta/pending?pending_id=not-real")
+        capabilities_missing_status, capabilities_missing = _get_json(base_url, "/api/beta/capabilities")
+        capabilities_status, capabilities = _get_json(base_url, "/api/beta/capabilities", "secret-token")
         ok_status, diagnostics = _get_json(base_url, "/api/diagnostics", "secret-token")
     finally:
         close()
@@ -119,5 +121,11 @@ def test_sensitive_endpoints_require_beta_token_and_health_is_public(tmp_path) -
     assert invalid["code"] == "api_auth_required"
     assert pending_status == 401
     assert pending["code"] == "api_auth_required"
+    assert capabilities_missing_status == 401
+    assert capabilities_missing["code"] == "api_auth_required"
+    assert capabilities_status == 200
+    assert capabilities["mode"] == "hosted_beta"
+    assert capabilities["security"]["tokens_returned"] is False
+    assert "secret-token" not in str(capabilities)
     assert ok_status == 200
     assert diagnostics["security"]["beta_token_configured"] is True

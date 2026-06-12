@@ -25,6 +25,11 @@ AdForge MCP - hosted MCP-сервис. Клиент не скачивает GitH
 
 ## Подробные инструкции
 
+- End-to-end validation: [END_TO_END_BETA_VALIDATION_RU.md](END_TO_END_BETA_VALIDATION_RU.md).
+- Acceptance checklist: [BETA_ACCEPTANCE_CHECKLIST_RU.md](BETA_ACCEPTANCE_CHECKLIST_RU.md).
+- Demo script: [BETA_DEMO_SCRIPT_RU.md](BETA_DEMO_SCRIPT_RU.md).
+- Beta capabilities endpoint: [BETA_CAPABILITIES_RU.md](BETA_CAPABILITIES_RU.md).
+- Go/no-go: [GO_NO_GO_RU.md](GO_NO_GO_RU.md).
 - Dashboard/OAuth: [DASHBOARD_CONNECTIONS_RU.md](DASHBOARD_CONNECTIONS_RU.md).
 - Codex: [CODEX_MCP_SETUP_RU.md](CODEX_MCP_SETUP_RU.md).
 - Claude: [CLAUDE_CONNECTOR_SETUP_RU.md](CLAUDE_CONNECTOR_SETUP_RU.md).
