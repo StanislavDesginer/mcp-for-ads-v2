@@ -270,6 +270,8 @@ class HostedConnectionStore:
         if not isinstance(provider_states, dict):
             provider_states = {}
             state_root[provider] = provider_states
+        for expired_id in [key for key, record in provider_states.items() if not isinstance(record, dict) or self._pending_expired(record)]:
+            provider_states.pop(expired_id, None)
         provider_states[state_id] = {
             "provider": provider,
             "created_at": _now_iso(),
@@ -338,7 +340,6 @@ class HostedConnectionStore:
         record = pending.get(pending_id) if isinstance(pending, dict) else None
         if not isinstance(record, dict):
             raise ValueError("OAuth pending selection was not found.")
-        expires_at = record.get("expires_at")
         if self._pending_expired(record):
             self._remove_pending(provider, pending_id)
             raise ValueError("OAuth pending selection expired.")

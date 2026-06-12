@@ -133,6 +133,8 @@ def _check_strict_security(security: dict[str, Any] | None) -> Check:
         "preview_only": True,
         "live_writes_enabled": False,
         "tokens_returned": False,
+        "beta_token_configured": True,
+        "secrets_redacted": True,
     }
     mismatches = [key for key, value in expected.items() if security.get(key) is not value]
     return Check("strict_deploy_security_posture", not mismatches, None, "mismatches=" + ",".join(mismatches))

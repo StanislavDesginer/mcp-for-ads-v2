@@ -190,6 +190,22 @@ def test_pending_selections_are_safe_and_disconnect_clears_provider(tmp_path: Pa
     assert store.pending_selections("google_ads") == []
 
 
+def test_save_oauth_state_prunes_expired_states(tmp_path: Path) -> None:
+    store = HostedConnectionStore(tmp_path / "tokens" / "connections.json")
+    store.save_oauth_state("meta_ads", "abandoned-state", ttl_seconds=900)
+    data = store.read()
+    data["oauth_states"]["meta_ads"]["abandoned-state"]["expires_at"] = (
+        datetime.now(timezone.utc) - timedelta(seconds=30)
+    ).isoformat()
+    store._write(data)  # noqa: SLF001
+
+    store.save_oauth_state("meta_ads", "fresh-state", ttl_seconds=900)
+    states = store.read()["oauth_states"]["meta_ads"]
+
+    assert "abandoned-state" not in states
+    assert "fresh-state" in states
+
+
 def test_pending_selections_mark_expired_records(tmp_path: Path) -> None:
     store = HostedConnectionStore(tmp_path / "tokens" / "connections.json")
     pending = store.save_oauth_pending(

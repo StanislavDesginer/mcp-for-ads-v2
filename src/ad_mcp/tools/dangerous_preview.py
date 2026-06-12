@@ -229,7 +229,7 @@ def build_dangerous_preview_tools(
         try:
             loaded, error = _fetch_current(platform, account_id, object_type, object_id, action)
         except Exception as exc:  # noqa: BLE001 - MCP tools should return structured errors.
-            return _not_available(platform=platform, account_id=account_id, object_type=object_type, object_id=object_id, action=action, message=str(exc))
+            return _not_available(platform=platform, account_id=account_id, object_type=object_type, object_id=object_id, action=action, message=_redact_error(str(exc)))
         if error:
             return error
         assert loaded is not None
@@ -274,7 +274,7 @@ def build_dangerous_preview_tools(
         try:
             loaded, error = _fetch_current(platform, account_id, object_type, object_id, action)
         except Exception as exc:  # noqa: BLE001
-            return _not_available(platform=platform, account_id=account_id, object_type=object_type, object_id=object_id, action=action, message=str(exc))
+            return _not_available(platform=platform, account_id=account_id, object_type=object_type, object_id=object_id, action=action, message=_redact_error(str(exc)))
         if error:
             return error
         assert loaded is not None
@@ -319,7 +319,7 @@ def build_dangerous_preview_tools(
         try:
             loaded, error = _fetch_current(platform, account_id, "campaign", campaign_id, "change_name")
         except Exception as exc:  # noqa: BLE001
-            return _not_available(platform=platform, account_id=account_id, object_type="campaign", object_id=campaign_id, action="change_name", message=str(exc))
+            return _not_available(platform=platform, account_id=account_id, object_type="campaign", object_id=campaign_id, action="change_name", message=_redact_error(str(exc)))
         if error:
             return error
         assert loaded is not None
