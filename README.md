@@ -1,55 +1,88 @@
 # AdForge MCP
 
-MCP-сервер для работы с рекламными кабинетами `Meta Ads`, `Google Ads`, `TikTok Ads` и `Yandex Direct`.
+AdForge MCP - hosted MCP-сервис для безопасной работы с рекламными кабинетами через Codex, Claude и другие MCP-compatible клиенты.
 
-## Целевая beta-модель
+Главная beta-модель: клиент не скачивает GitHub-репозиторий и не запускает MCP-сервер локально. AdForge MCP разворачивается на нашем VPS/WPS-сервере, рекламные кабинеты подключаются через web dashboard и OAuth, а AI-клиент подключается к уже работающему hosted MCP endpoint.
 
-AdForge MCP должен работать как hosted MCP/connector-сервис на нашем VPS/WPS-сервере. Пользователь не скачивает репозиторий и не запускает сервер локально. Он подключает готовый MCP endpoint в Codex, Claude или другом AI-клиенте, а рекламные кабинеты подключает через сайт AdForge MCP и OAuth.
+## Beta Customer Setup
 
-Локальный запуск в этом README нужен только для разработки, тестирования и обслуживания сервера.
+Для beta-пользователя рабочий сценарий такой:
 
-Сейчас проект в первую очередь решает такие задачи:
-- единый слой read-инструментов по рекламным платформам
-- безопасные сценарии `preview -> confirm` для write-операций
-- веб-панель оператора под `Meta Ads`
-- безопасный режим без реальных изменений по умолчанию
+1. Получить URL dashboard, URL hosted MCP endpoint и beta token.
+2. Открыть dashboard AdForge MCP.
+3. Перейти в `Connections`.
+4. Подключить Meta Ads и/или Google Ads через OAuth.
+5. Выбрать рекламные аккаунты после OAuth callback.
+6. Проверить статус `MCP ready` и диагностику.
+7. Скопировать MCP URL из dashboard.
+8. Добавить AdForge MCP в Codex, Claude или другой MCP-клиент как внешний hosted server/custom connector.
+9. Задать AI-клиенту тестовый запрос: `Проверь диагностику AdForge MCP`.
 
-## Текущий статус
+Клиенту не нужны `.env`, `ads_config.yaml`, GitHub clone или локальный Python runtime.
 
-Что уже работает:
-- локальный MCP stdio-сервер запускается
-- live-read путь для `Meta Ads` реализован
-- каркас для `Google Ads` уже есть и ждёт credentials
-- `TikTok Ads` и `Yandex Direct` пока остаются в безопасном preview-режиме
-- есть внутренняя веб-панель оператора для `Meta Ads`
+## Beta-Ready MVP Scope
 
-Что пока намеренно ограничено:
-- реальные изменения в кабинетах не включены по умолчанию
-- политика безопасности держит проект в режиме `simulated_no_write`
-- production auth, мультиарендность, биллинг и клиентская изоляция ещё не завершены
+В beta фиксируем такой честный scope:
 
-## Структура репозитория
+- Hosted MCP transport: Streamable HTTP endpoint, по умолчанию `/mcp`.
+- Web dashboard: Connections, OAuth onboarding, account selection, reconnect/disconnect, diagnostics.
+- Auth: Web API и MCP endpoint закрыты beta token из `AD_MCP_WEB_API_TOKEN`.
+- Meta Ads: OAuth, выбор аккаунтов, campaigns, statuses, basic metrics, diagnostics.
+- Google Ads: OAuth, выбор customer accounts, campaigns, statuses, basic metrics, diagnostics при валидных Google Ads credentials и developer token.
+- TikTok Ads: OAuth groundwork и сохранение подключения; campaigns/metrics в beta могут возвращать `not_available`.
+- Yandex Direct: OAuth groundwork и сохранение подключения; campaigns/metrics в beta могут возвращать `not_available`.
+- Safety: реальные write-действия отключены, опасные действия работают только через preview-only tools.
+- Storage: `tokens/connections.json` используется как beta storage и не коммитится.
 
-- [src/ad_mcp](src/ad_mcp) - основной код приложения
-- [config/policies/safety.example.yaml](config/policies/safety.example.yaml) - безопасная политика по умолчанию
-- [ads_config.example.yaml](ads_config.example.yaml) - пример конфига подключений провайдеров
-- [CONNECTING.md](CONNECTING.md) - как подключать кабинеты и секреты
-- [TESTING.md](TESTING.md) - как тестировать проект локально и через hosted UI
-- [DEPLOYING.md](DEPLOYING.md) - как разворачивать проект на сервере
-- [CHECKLIST_RU.md](CHECKLIST_RU.md) - простой пошаговый чеклист для коллеги без техподготовки
-- [CREATIVE_BRIEF_RU.md](CREATIVE_BRIEF_RU.md) - внутренний справочный файл
+Вне beta scope:
 
-## Локальный запуск
+- реальные изменения бюджетов, статусов и названий кампаний;
+- публичный multi-tenant SaaS без отдельной изоляции пользователей;
+- production database-backed encrypted token storage;
+- ClickHouse persistence как основной слой хранения;
+- fake metrics вместо реальных provider data.
+
+## MCP Tools
+
+Основные beta tools:
+
+- Diagnostics: `run_diagnostics`, `run_connection_diagnostics`, `list_connected_platforms`, `get_account_status`.
+- Accounts: `list_ad_accounts`.
+- Campaigns: `list_campaigns`, `get_campaign`, `get_campaign_statuses`.
+- Metrics: `get_basic_metrics`.
+- Preview-only actions: `preview_pause_campaign`, `preview_resume_campaign`, `preview_change_campaign_budget`, `preview_change_campaign_name`, `preview_pause_adset_or_group`, `preview_resume_adset_or_group`, `preview_change_adset_or_group_budget`, `preview_pause_ad`, `preview_resume_ad`.
+
+Полная справка: [docs/beta/MCP_TOOLS_REFERENCE_RU.md](docs/beta/MCP_TOOLS_REFERENCE_RU.md).
+
+## Beta Docs
+
+- [docs/beta/BETA_READY_MVP_RU.md](docs/beta/BETA_READY_MVP_RU.md) - главный scope beta-ready MVP.
+- [docs/beta/DASHBOARD_CONNECTIONS_RU.md](docs/beta/DASHBOARD_CONNECTIONS_RU.md) - подключение рекламных платформ через dashboard/OAuth.
+- [docs/beta/CODEX_MCP_SETUP_RU.md](docs/beta/CODEX_MCP_SETUP_RU.md) - подключение hosted MCP в Codex.
+- [docs/beta/CLAUDE_CONNECTOR_SETUP_RU.md](docs/beta/CLAUDE_CONNECTOR_SETUP_RU.md) - подключение hosted MCP в Claude.
+- [docs/beta/OTHER_MCP_CLIENTS_RU.md](docs/beta/OTHER_MCP_CLIENTS_RU.md) - Gemini и другие MCP-compatible клиенты.
+- [docs/beta/MCP_TOOLS_REFERENCE_RU.md](docs/beta/MCP_TOOLS_REFERENCE_RU.md) - beta tools reference.
+- [docs/beta/BETA_SECURITY_RU.md](docs/beta/BETA_SECURITY_RU.md) - безопасность, preview-only и секреты.
+- [docs/beta/BETA_DEMO_CHECKLIST_RU.md](docs/beta/BETA_DEMO_CHECKLIST_RU.md) - чеклист beta-demo.
+- [docs/beta/HOSTED_MCP_TRANSPORT_RU.md](docs/beta/HOSTED_MCP_TRANSPORT_RU.md) - hosted MCP transport.
+- [docs/beta/DIAGNOSTICS_RU.md](docs/beta/DIAGNOSTICS_RU.md) - backend/dashboard/MCP diagnostics.
+- [docs/beta/PARTNER_OAUTH_FLOWS_RU.md](docs/beta/PARTNER_OAUTH_FLOWS_RU.md) - OAuth flows Google/TikTok/Yandex.
+- [docs/beta/META_OAUTH_FLOW_RU.md](docs/beta/META_OAUTH_FLOW_RU.md) - Meta OAuth flow.
+- [docs/beta/mcp.example.json](docs/beta/mcp.example.json) - пример MCP client config без реальных секретов.
+
+## Developer Setup
+
+Этот раздел нужен только разработчикам и серверной команде AdForge MCP.
 
 ### Windows
 
 ```powershell
-cd "<путь-к-проекту>\\AdForge-MCP"
+cd "C:\MCP\AdForge-MCP"
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev,google,meta]"
 ```
 
-### Linux
+### Linux / VPS
 
 ```bash
 cd /opt/adforge-mcp
@@ -57,182 +90,44 @@ python3.11 -m venv .venv
 ./.venv/bin/python -m pip install -e ".[dev,google,meta]"
 ```
 
-## Локальные рабочие файлы
+Локальные runtime-файлы создаются только на машине разработчика или на сервере:
 
-Проект читает `.env` из корня репозитория и подставляет переменные внутрь `ads_config.yaml`.
+- `.env` на основе [.env.example](.env.example);
+- `ads_config.yaml` на основе [ads_config.example.yaml](ads_config.example.yaml), если нужен fallback/local provider config;
+- `tokens/connections.json` создается runtime-логикой OAuth и должен оставаться ignored.
 
-Что нужно сделать:
-- взять [.env.example](.env.example)
-- создать локальный `.env`
-- взять [ads_config.example.yaml](ads_config.example.yaml)
-- создать локальный `ads_config.yaml`
+Нельзя коммитить реальные `access_token`, `refresh_token`, `client_secret`, `app_secret`, `developer_token`, `.env`, `ads_config.yaml` или `tokens/connections.json`.
 
-Важно:
-- `.env` хранить только локально
-- `ads_config.yaml` хранить только локально
-- не коммитить в Git реальные токены, app secrets и refresh tokens
+## Local Developer Commands
 
-## Запуск MCP-сервера
+Web dashboard:
 
 ```powershell
-cd "<путь-к-проекту>\\AdForge-MCP"
-.\.venv\Scripts\python.exe -m ad_mcp.server
-```
-
-или:
-
-```powershell
-ad-mcp-server
-```
-
-Важно:
-сервер рассчитан на запуск через MCP-клиент, например `Codex`, а не на ручной ввод команд в интерактивной консоли.
-
-## Запуск веб-панели Meta
-
-Значения по умолчанию:
-- host: `127.0.0.1`
-- port: `8765`
-
-При необходимости переопределяются переменными:
-- `AD_MCP_WEB_HOST`
-- `AD_MCP_WEB_PORT`
-
-Локальный запуск:
-
-```powershell
-cd "<путь-к-проекту>\\AdForge-MCP"
 .\.venv\Scripts\python.exe -m ad_mcp.web.server
 ```
 
-После запуска открыть:
-- [http://127.0.0.1:8765](http://127.0.0.1:8765)
-
-Проверка health:
-- [http://127.0.0.1:8765/healthz](http://127.0.0.1:8765/healthz)
-
-## Как передавать проект тестеру
-
-Если кто-то другой должен проверить проект, ему нужно передать:
-- сам репозиторий
-- локальный `.env`
-- локальный `ads_config.yaml`
-
-Дальше он может идти по:
-- [TESTING.md](TESTING.md)
-- [CHECKLIST_RU.md](CHECKLIST_RU.md)
-
-## Что уже покрыто по Meta Ads
-
-Read-инструменты, которые уже есть:
-- `get_account_summary`
-- `list_account_objects`
-- `get_account_object`
-- `get_flexible_insights`
-- `get_billing_summary`
-- `get_spend_overview`
-- `estimate_budget_days_remaining`
-- `get_connected_assets`
-- `get_delivery_issues`
-- `get_status_summary`
-- `get_breakdown_preset`
-- `rank_top_entities`
-- `get_top_performers`
-- `get_no_result_entities`
-- `find_wasting_spend`
-- `find_burnout_ads`
-- `compare_periods`
-- `compare_creatives`
-- `detect_anomalies`
-- `analyze_audiences`
-- `get_executive_summary`
-- `audit_account`
-- `audit_links_and_utms`
-- `get_campaign_structure`
-- `get_policy_issues`
-- `get_conversion_health`
-- `get_asset_health`
-- `list_creative_assets`
-- `list_lead_forms`
-- `get_recommendations_read`
-- `list_automated_rules`
-- `get_rule_history`
-- `get_minimum_budgets_read`
-- `get_reach_estimate_read`
-- `get_tracking_specs`
-- `get_launch_checklist`
-
-Preview-инструменты для write-сценариев:
-- `clone_campaign_preview`
-- `clone_adset_preview`
-- `clone_ad_preview`
-- `update_campaign_budget_preview`
-- `update_adset_budget_preview`
-- `pause_entities_preview`
-- `enable_entities_preview`
-- `update_targeting_preview`
-- `update_placements_preview`
-- `replace_ad_creative_preview`
-- `create_adset_in_campaign_preview`
-- `create_ad_in_existing_adset_preview`
-- `create_creative_preview`
-- `create_audience_variant_preview`
-- `create_engagement_campaign_preview`
-- `create_lead_campaign_preview`
-- `create_whatsapp_traffic_campaign_preview`
-- `create_ab_test_ads_preview`
-- `duplicate_campaign_with_geo_preview`
-- `duplicate_campaign_with_audience_preview`
-- `rebalance_budget_to_end_of_month_preview`
-- `pause_underperformers_preview`
-- `scale_best_campaigns_preview`
-- `scale_winners_by_rule_preview`
-- `archive_entities_preview`
-
-## Текущие безопасные ограничения
-
-По умолчанию проект делает вот что:
-- блокирует неизвестные аккаунты
-- ограничивает mutation-сценарии через [config/policies/safety.example.yaml](config/policies/safety.example.yaml)
-- работает в режиме `simulated_no_write`
-- пишет аудит в `logs/audit.jsonl`
-
-Если выкладывать проект наружу, нельзя открывать preview/write endpoints без:
-- контроля доступа
-- reverse proxy
-- IP-фильтрации или авторизации
-- нормального хранения секретов
-
-## Хостинг
-
-Рекомендуемая база:
-- Ubuntu 22.04 LTS или 24.04 LTS
-- Python 3.11
-- systemd
-- Nginx reverse proxy
-- `.env` только на сервере
-- `ads_config.yaml` только на сервере
-
-Подробный сценарий деплоя:
-- [DEPLOYING.md](DEPLOYING.md)
-
-## Тесты
+Hosted MCP transport:
 
 ```powershell
-cd "<путь-к-проекту>\\AdForge-MCP"
-.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\ad-mcp-http.exe
 ```
 
-## Текущая безопасность проекта
+Smoke and tests:
 
-Что уже хорошо:
-- секреты ожидаются через переменные окружения
-- в репозитории лежат только example-файлы
-- локальные секретные файлы игнорируются Git
-- веб-панель по умолчанию биндингится на localhost
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m compileall src
+node --check src/ad_mcp/web/static/app.js
+.\.venv\Scripts\python.exe scripts/smoke_mcp_beta.py
+```
 
-Что ещё нужно сделать перед нормальным production:
-- поставить auth перед веб-панелью
-- разделить хранение секретов по клиентам
-- перевыпустить токены, если они когда-либо отправлялись в чат
-- со временем перейти от локального конфига к tenant-aware storage
+## Production Notes
+
+Recommended beta deployment uses two internal processes behind Nginx:
+
+- dashboard/API: `127.0.0.1:8765`;
+- MCP transport: `127.0.0.1:8766/mcp`.
+
+External users receive only dashboard URL, MCP URL and beta token. Server secrets stay in environment variables on the VPS/WPS server.
+
+Deployment details for the server team: [DEPLOYING.md](DEPLOYING.md).

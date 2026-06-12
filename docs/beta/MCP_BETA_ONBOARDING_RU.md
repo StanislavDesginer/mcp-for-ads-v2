@@ -1,126 +1,45 @@
 # AdForge MCP hosted beta onboarding
 
-Эта инструкция описывает целевую beta-модель. Пользователь не скачивает GitHub-репозиторий и не запускает MCP локально. AdForge MCP развернут на нашем VPS/WPS-сервере, а пользователь подключает его как внешний MCP/connector-сервис.
+Этот документ оставлен как короткая точка входа. Полный beta-scope описан в [BETA_READY_MVP_RU.md](BETA_READY_MVP_RU.md).
 
-## 1. Что получает пользователь
+## Главный принцип
 
-- URL сайта AdForge MCP.
-- URL MCP endpoint.
-- Доступ к dashboard.
-- Возможность подключить рекламные кабинеты через OAuth.
-- Инструкцию для Codex, Claude и других клиентов.
+AdForge MCP - hosted MCP-сервис. Клиент не скачивает GitHub-репозиторий, не запускает сервер локально и не редактирует `.env`/`ads_config.yaml`.
 
-## 2. Подключение рекламного кабинета
+Клиент делает две вещи:
 
-Пользователь заходит на сайт AdForge MCP и открывает раздел `Connections`.
+1. Подключает рекламные кабинеты через AdForge dashboard и OAuth.
+2. Подключает уже работающий hosted MCP endpoint в Codex, Claude, Gemini или другой MCP-клиент.
 
-Для Meta Ads:
+## Быстрый путь beta-пользователя
 
-1. Нажать `Connect Meta Ads`.
-2. Пройти Meta OAuth.
-3. Разрешить нужные permissions.
-4. Увидеть список доступных рекламных аккаунтов.
-5. Выбрать аккаунты для работы.
-6. Сохранить подключение.
-7. Проверить статус и диагностику.
+1. Получить dashboard URL, hosted MCP URL и beta token.
+2. Открыть dashboard.
+3. Перейти в `Connections`.
+4. Подключить Meta Ads и/или Google Ads через OAuth.
+5. Выбрать доступные рекламные аккаунты.
+6. Запустить диагностику.
+7. Скопировать MCP URL.
+8. Добавить AdForge MCP в AI-клиент.
+9. Проверить tools запросом: `Проверь диагностику AdForge MCP`.
 
-Для Google Ads:
+## Подробные инструкции
 
-1. Нажать `Connect Google Ads`.
-2. Пройти Google OAuth.
-3. Выбрать доступные customer accounts.
-4. Сохранить подключение.
-5. Проверить статус и диагностику.
+- Dashboard/OAuth: [DASHBOARD_CONNECTIONS_RU.md](DASHBOARD_CONNECTIONS_RU.md).
+- Codex: [CODEX_MCP_SETUP_RU.md](CODEX_MCP_SETUP_RU.md).
+- Claude: [CLAUDE_CONNECTOR_SETUP_RU.md](CLAUDE_CONNECTOR_SETUP_RU.md).
+- Gemini/other clients: [OTHER_MCP_CLIENTS_RU.md](OTHER_MCP_CLIENTS_RU.md).
+- Tools: [MCP_TOOLS_REFERENCE_RU.md](MCP_TOOLS_REFERENCE_RU.md).
+- Security: [BETA_SECURITY_RU.md](BETA_SECURITY_RU.md).
+- Demo checklist: [BETA_DEMO_CHECKLIST_RU.md](BETA_DEMO_CHECKLIST_RU.md).
 
-Вручную передавать access tokens, client secrets, `.env` или `ads_config.yaml` пользователь не должен.
+## Beta platform status
 
-## 3. Что видно на сайте
+- Meta Ads: OAuth, account selection, campaigns, metrics, diagnostics.
+- Google Ads: OAuth, account selection, campaigns, metrics, diagnostics.
+- TikTok Ads: OAuth groundwork; campaigns/metrics могут быть `not_available`.
+- Yandex Direct: OAuth groundwork; campaigns/metrics могут быть `not_available`.
 
-В dashboard должны быть:
+## Safety
 
-- список подключенных платформ;
-- список подключенных рекламных аккаунтов;
-- статус подключения;
-- базовая диагностика;
-- кнопка reconnect;
-- кнопка disconnect;
-- список доступных connectors.
-
-Ориентир по UX: простой экран Connections, где видно Meta Ads, Google Ads, статус `Active`, подключенные аккаунты и кнопки управления.
-
-## 4. Подключение в Codex
-
-В Codex пользователь открывает настройки MCP, нажимает `Add server` и добавляет наш hosted server.
-
-Пример логики заполнения:
-
-- Name: `AdForge MCP`
-- Transport: `Streamable HTTP` или другой доступный HTTP/MCP режим
-- URL: `https://<our-domain>/mcp`
-- Auth: token/header, если включена авторизация
-
-Точный формат зависит от версии Codex, поэтому в beta-документации нужно держать отдельный скриншот и актуальную инструкцию.
-
-## 5. Подключение в Claude
-
-В Claude пользователь открывает:
-
-`Settings -> Connectors -> Customize -> +`
-
-Дальше добавляет custom connector:
-
-- Name: `AdForge MCP`
-- URL: `https://<our-domain>/mcp`
-
-После добавления Claude показывает permissions/tools. Пользователь может включить или отключить нужные разрешения.
-
-## 6. Подключение в Gemini
-
-Gemini может использовать другой формат подключения. Для него нужно отдельно проверить актуальный connector flow и подготовить отдельную инструкцию.
-
-До проверки Gemini фиксируем как адаптацию после Codex и Claude.
-
-## 7. Что пользователь спрашивает у ИИ
-
-После подключения MCP пользователь может писать обычные запросы:
-
-- `Выведи список рекламных аккаунтов.`
-- `Покажи кампании по Meta Ads.`
-- `Покажи бюджеты кампаний.`
-- `Покажи статусы кампаний.`
-- `Покажи базовые метрики за последние 7 дней.`
-- `Покажи проблемные кампании.`
-
-ИИ обращается к hosted AdForge MCP, а MCP работает с аккаунтами, которые пользователь подключил через сайт.
-
-## 8. Безопасные действия
-
-В beta-ready MVP реальные изменения в рекламных кабинетах не выполняются.
-
-Если пользователь просит изменить бюджет, выключить кампанию, поменять статус или выполнить другое опасное действие, MCP возвращает preview:
-
-- какое действие будет выполнено;
-- к какому аккаунту относится действие;
-- какой объект будет изменен;
-- что было до изменения;
-- что будет после изменения;
-- какие есть риски.
-
-Фактический write в beta отключен или недоступен без отдельного confirm-механизма.
-
-## 9. Beta-ready MVP definition
-
-К концу июня MVP считается готовым, если:
-
-- AdForge MCP развернут на нашем VPS/WPS;
-- есть сайт / dashboard;
-- Meta Ads подключается через OAuth;
-- желательно Google Ads подключается через OAuth;
-- на сайте видны подключенные аккаунты;
-- диагностика подключения работает;
-- Codex и Claude могут подключить hosted MCP;
-- через MCP можно получить аккаунты, кампании, статусы, бюджеты и базовые метрики;
-- опасные действия работают только через preview;
-- документация объясняет, что уже работает и что пока в планах.
-
-Главный принцип: beta MVP - это hosted MCP-сервис с OAuth-подключением рекламных кабинетов, а не локальный GitHub-проект для разработчиков.
+Beta работает в preview-only mode. Если пользователь просит изменить бюджет, остановить кампанию или выполнить другое dangerous-действие, MCP возвращает preview с `will_apply=false`.

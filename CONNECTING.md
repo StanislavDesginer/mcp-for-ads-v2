@@ -1,100 +1,65 @@
 # Как подключать AdForge MCP
 
-## Главные рабочие файлы
+AdForge MCP в beta работает как hosted service. Клиентский onboarding идет через dashboard/OAuth и hosted MCP endpoint, а не через локальные файлы.
 
-Проект использует два runtime-файла:
+## Для beta-клиента
 
-- `ads_config.yaml`
-- `.env`
+Клиент получает:
 
-Если проект клонируется из приватного командного репозитория, они уже могут лежать в корне.
+- dashboard URL;
+- hosted MCP URL;
+- beta token.
 
-Если их нет, их нужно получить отдельно у владельца проекта.
+Дальше клиент:
 
-## Что нужно для реальных запросов
+1. Открывает dashboard.
+2. Заходит в `Connections`.
+3. Подключает рекламные платформы через OAuth.
+4. Выбирает рекламные аккаунты.
+5. Копирует MCP URL.
+6. Добавляет AdForge MCP в Codex, Claude или другой MCP-клиент.
 
-Чтобы работали реальные обращения к рекламным платформам, нужны:
-- `ads_config.yaml`
-- `.env`
-- реальные credentials платформы
+Подробно:
 
-Без них:
-- репозиторий всё равно откроется
-- тесты всё равно можно запустить
-- hosted UI всё равно откроется
-- но live provider calls будут падать по auth или работать на заглушках
+- [docs/beta/DASHBOARD_CONNECTIONS_RU.md](docs/beta/DASHBOARD_CONNECTIONS_RU.md);
+- [docs/beta/CODEX_MCP_SETUP_RU.md](docs/beta/CODEX_MCP_SETUP_RU.md);
+- [docs/beta/CLAUDE_CONNECTOR_SETUP_RU.md](docs/beta/CLAUDE_CONNECTOR_SETUP_RU.md);
+- [docs/beta/OTHER_MCP_CLIENTS_RU.md](docs/beta/OTHER_MCP_CLIENTS_RU.md).
 
-## Куда класть файлы
+## Для разработчика и сервера
 
-Оба runtime-файла должны лежать в корне проекта:
+Runtime-файлы:
 
-```text
-AdForge-MCP/
-  .env
-  ads_config.yaml
-  README.md
-  pyproject.toml
-  src/
-```
+- `.env`;
+- `ads_config.yaml`, если нужен local fallback/bootstrap;
+- `tokens/connections.json`, который создается OAuth storage.
 
-## ads_config.yaml
+Эти файлы должны лежать только локально или на сервере и не должны коммититься.
 
-Подключения к рекламным платформам читаются из `ads_config.yaml`.
+Примеры:
 
-Структуру можно смотреть в:
-- [ads_config.example.yaml](ads_config.example.yaml)
+- [.env.example](.env.example);
+- [ads_config.example.yaml](ads_config.example.yaml).
 
-## .env
+## Provider data
 
-Переменные внутри `ads_config.yaml` подставляются из `.env`.
+Для hosted OAuth на сервере нужны env variables из [.env.example](.env.example):
 
-Пример структуры:
-- [.env.example](.env.example)
+- Meta Ads OAuth app id/secret;
+- Google OAuth client id/secret и Google Ads developer token;
+- TikTok app id/secret;
+- Yandex OAuth client id/secret;
+- `AD_MCP_PUBLIC_BASE_URL`;
+- `AD_MCP_WEB_API_TOKEN`;
+- redirect path для каждого provider.
 
-## Какие данные нужны по платформам
+Клиент не получает provider secrets. Он проходит OAuth в dashboard.
 
-### Meta Ads
+## Security
 
-Обязательно:
-- `account_id`
-- `app_id`
-- `app_secret`
-- `access_token`
-
-### Google Ads
-
-Обязательно:
-- `account_id`
-- `customer_id`
-- `login_customer_id`
-- `developer_token`
-- `oauth_client_id`
-- `oauth_client_secret`
-- `refresh_token`
-
-### TikTok Ads
-
-Обязательно:
-- `account_id`
-- `advertiser_id`
-- `app_id`
-- `secret`
-- `access_token`
-
-### Yandex Direct
-
-Обязательно:
-- `account_id`
-- `login`
-- `access_token`
-
-## Hosted web UI
-
-Если проект уже развёрнут на сервере, тестер может просто открыть:
-- [http://77.240.38.131](http://77.240.38.131)
-
-Это удобно для:
-- быстрого smoke test
-- проверки интерфейса
-- проверки диагностики
-- проверки, что сервер видит Meta аккаунты
+- Не коммитить `.env`.
+- Не коммитить `ads_config.yaml`.
+- Не коммитить `tokens/connections.json`.
+- Не раскрывать access/refresh tokens.
+- Не раскрывать client/app/developer secrets.
+- Dangerous actions в beta остаются preview-only.

@@ -403,6 +403,12 @@ button:focus-visible {
   align-items: start;
 }
 
+.connection-summary__actions {
+  display: flex;
+  justify-content: flex-end;
+  grid-column: 2;
+}
+
 .connection-platforms {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1067,6 +1073,11 @@ tbody tr:hover {
   .section-header--with-action,
   .connection-summary {
     grid-template-columns: 1fr;
+  }
+
+  .connection-summary__actions {
+    justify-content: flex-start;
+    grid-column: 1;
   }
 
   .inline-field {

@@ -586,6 +586,9 @@
             ${renderKv("URL", mcp.url || "")}
             ${renderKv("Store", store.configured ? "configured" : "not created yet")}
           </div>
+          <div class="connection-summary__actions">
+            <button type="button" class="btn btn--secondary" data-copy-mcp-url="${escAttr(mcp.url || "")}" ${mcp.url ? "" : "disabled"}>Copy MCP URL</button>
+          </div>
         </article>
         ${activePending ? renderPendingSelection(activePending) : ""}
         <div class="connection-platforms">${platformMarkup}</div>
@@ -602,6 +605,12 @@
     });
     el.connectionsContent.querySelectorAll("[data-diagnostics-provider]").forEach((button) => {
       button.addEventListener("click", () => runPlatformDiagnostics(button.dataset.diagnosticsProvider, button));
+    });
+    el.connectionsContent.querySelectorAll("[data-copy-mcp-url]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        await copyText(button.dataset.copyMcpUrl || "");
+        toast("MCP URL copied.", "success");
+      });
     });
     el.connectionsContent.querySelectorAll("[data-pending-form]").forEach((form) => {
       form.addEventListener("submit", (event) => {

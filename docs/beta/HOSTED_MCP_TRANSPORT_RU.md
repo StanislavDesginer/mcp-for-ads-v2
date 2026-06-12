@@ -84,6 +84,12 @@ location / {
 Authorization: Bearer <beta-token>
 ```
 
-## Что дальше
+## Текущий beta-flow
 
-Следующий шаг - связать hosted MCP tools не с локальным `ads_config.yaml`, а с OAuth connections пользователя из dashboard.
+Hosted MCP tools читают runtime-подключения из dashboard/OAuth connection store (`tokens/connections.json`). Локальный `ads_config.yaml` остается developer/server fallback и не является customer onboarding flow.
+
+Для подключения клиента используйте:
+
+- [CODEX_MCP_SETUP_RU.md](CODEX_MCP_SETUP_RU.md);
+- [CLAUDE_CONNECTOR_SETUP_RU.md](CLAUDE_CONNECTOR_SETUP_RU.md);
+- [OTHER_MCP_CLIENTS_RU.md](OTHER_MCP_CLIENTS_RU.md).

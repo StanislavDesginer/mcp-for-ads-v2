@@ -1,92 +1,27 @@
-# Самый простой чеклист
+# Быстрый чеклист AdForge MCP
 
-Этот файл нужен для человека, который не хочет разбираться в проекте глубоко и хочет просто запустить всё у себя.
+Этот файл больше не описывает клиентский сценарий “склонировать GitHub и запустить локально”. Beta-модель AdForge MCP - hosted service на нашем VPS/WPS.
 
-## 1. Создай пустую папку
+## Для beta-клиента
 
-Например:
+1. Получить dashboard URL, hosted MCP URL и beta token.
+2. Открыть dashboard.
+3. Перейти в `Connections`.
+4. Подключить рекламные кабинеты через OAuth.
+5. Выбрать рекламные аккаунты.
+6. Запустить диагностику.
+7. Скопировать MCP URL.
+8. Добавить AdForge MCP в Codex, Claude или другой MCP-клиент.
+9. Проверить запросом: `Проверь диагностику AdForge MCP`.
 
-```text
-C:\Projects\AdForge-MCP
-```
+Подробный чеклист demo: [docs/beta/BETA_DEMO_CHECKLIST_RU.md](docs/beta/BETA_DEMO_CHECKLIST_RU.md).
 
-## 2. Открой эту папку в Codex
+## Для разработчика
 
-Открывать нужно именно пустую папку, в которую потом клонируется проект.
+Локальная установка и запуск нужны только для разработки, тестов и обслуживания сервера. Используйте:
 
-## 3. Открой встроенную консоль в Codex
+- [README.md](README.md#developer-setup);
+- [TESTING.md](TESTING.md);
+- [DEPLOYING.md](DEPLOYING.md).
 
-Дальше все команды вводятся прямо там.
-
-## 4. Клонируй репозиторий
-
-```powershell
-git clone git@github.com:mcpforge-dev/AdForge-MCP.git .
-```
-
-Важно:
-- точка в конце обязательна
-- она значит “клонировать прямо в текущую папку”
-
-## 5. Создай виртуальное окружение
-
-```powershell
-py -3.11 -m venv .venv
-```
-
-## 6. Установи зависимости
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -e ".[dev,google,meta]"
-```
-
-## 7. Проверь, что в папке уже есть рабочие файлы
-
-После `git clone` в проекте уже должны лежать:
-- `.env`
-- `ads_config.yaml`
-
-Если они есть, отдельно добавлять их не нужно.
-
-## 8. Запусти веб-интерфейс
-
-```powershell
-.\.venv\Scripts\python.exe -m ad_mcp.web.server
-```
-
-## 9. Открой сайт
-
-В браузере открой:
-
-```text
-http://127.0.0.1:8765
-```
-
-## 10. Если нужно проверить через Codex + MCP
-
-Используй пример конфига:
-- [.codex/config.example.toml](.codex/config.example.toml)
-
-Потом можно писать в Codex такие команды:
-
-```text
-Use MCP server adforge and show list_accounts for provider meta_ads.
-```
-
-```text
-Use MCP server adforge and call get_account_summary for provider meta_ads and account_id act_1746501262698286.
-```
-
-```text
-Use MCP server adforge and call find_wasting_spend for provider meta_ads, account_id act_1746501262698286, start_date 2026-04-01, end_date 2026-05-21.
-```
-
-## Если что-то не работает
-
-Проверь только это:
-1. установлен ли Python 3.11
-2. установлен ли Git
-3. отработала ли команда установки зависимостей
-4. открывается ли `http://127.0.0.1:8765`
-
-Если эти 4 пункта ок, значит проект в целом поднялся.
+Не коммитьте `.env`, `ads_config.yaml`, `tokens/connections.json` или реальные provider secrets.
