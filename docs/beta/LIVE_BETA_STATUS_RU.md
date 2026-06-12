@@ -56,6 +56,46 @@ Journal logs (`adforge-mcp-web`, `adforge-mcp-http`, последние 300 ст
 | TikTok Ads | `APP_ID=present`, `APP_SECRET=present` | `not_connected` — env есть, live OAuth не проходил |
 | Yandex Direct | `CLIENT_ID=present`, `CLIENT_SECRET=present` | `not_connected` — env есть, live OAuth не проходил |
 
+## Credential discovery на VPS (2026-06-13, значения не выводились)
+
+Где искал: `/opt`, `/home/ubuntu`, `/root`, `/etc/adforge-mcp`, `/var/lib/adforge-mcp`, `/var/backups/adforge-mcp` — по именам файлов (`.env*`, `ads_config.yaml`, `google-ads.yaml`, `client_secret*.json`, `*credentials*.json`) и по ключам Meta/Google.
+
+Найдено в предшественнике `mcp-for-ads` (Meta-only console, не AdForge):
+
+- `/opt/mcp-for-ads/.env` — **git-tracked**, в истории (commit `abfe8be`), remote `github.com/StanislavDesginer/mcp-for-ads-v2`.
+- `/home/ubuntu/projects/mcp-for-ads/.env` — untracked, remote `github.com/StanislavDesigner/mcp-for-ads`.
+- `ads_config.yaml` в обеих копиях.
+
+Содержимое (только тип/наличие, без значений):
+
+- **Meta: 3 разных app** (Varikoza Net, Interna Clinic, Pallada) — у каждого реальный `app_id` (16-значный) + реальный `app_secret` (32 симв.) + long-lived user `access_token` (формат `EAA...`). Это **app credentials** старой per-account модели, не единый hosted-OAuth app.
+- **Google: пусто везде** — `oauth_client_id`/`oauth_client_secret`/`developer_token`/`login_customer_id`/`refresh_token` все EMPTY; `client_secret.json` и `google-ads.yaml` не найдены.
+- TikTok/Yandex app credentials в этих файлах не заданы (отдельно от live env, где они present).
+
+**Решение по миграции: НЕ перенесено в live env.** Причины:
+
+1. Три разных Meta app — выбор, какой app становится OAuth-шлюзом hosted-сервиса, это бизнес-решение пользователя, не угадывается.
+2. `app_secret` лежат в **git-tracked файле с remote** → считаются **компрометированными** → перед production-использованием нужен **rotate** в Meta App Dashboard. Перенос скомпрометированного секрета в live OAuth = регресс безопасности.
+3. Redirect URI `https://77.240.38.131.sslip.io/oauth/meta/callback` в конкретном Meta app нельзя проверить/настроить без доступа к Meta App Dashboard.
+4. Найденные `access_token` — это user-токены, не OAuth app credentials; для hosted OAuth не используются.
+
+### SECURITY ISSUE (high)
+
+Реальные Meta `app_secret` (×3) и long-lived `access_token` (×3) закоммичены в git-репозиторий `mcp-for-ads-v2` с remote на GitHub. Действия:
+
+- считать эти 3 app secrets и 3 access tokens **компрометированными**;
+- **rotate** app secret каждого Meta app в Meta App Dashboard (Settings → Basic → Reset);
+- инвалидировать/перевыпустить access tokens;
+- удалить `.env` из tracked файлов репозитория (`git rm --cached .env`, добавить в `.gitignore`) и почистить историю при необходимости.
+
+Репозиторий **AdForge MCP** секреты НЕ трекает (`git ls-files` чисто) — проблема только в legacy `mcp-for-ads`.
+
+## OAuth authorize-url status
+
+- Meta authorize-url: **not generated** — `AD_MCP_META_OAUTH_APP_ID/SECRET` отсутствуют в live env (callback честно отвечает «not configured»).
+- Google authorize-url: **not generated** — Google env отсутствует.
+- Миграция найденных Meta creds не выполнялась (см. выше), поэтому статус authorize-url не изменился.
+
 - Connected platforms: 0. Connected accounts: 0.
 - Live OAuth не проходил ни для одной платформы. Fake-данные не создавались.
 
@@ -81,10 +121,14 @@ Journal logs (`adforge-mcp-web`, `adforge-mcp-http`, последние 300 ст
 
 ### Meta Ads — `needs_provider_dashboard_access`
 
-1. В Meta App Dashboard (app типа Business): Facebook Login → Settings → Valid OAuth Redirect URIs: `https://77.240.38.131.sslip.io/oauth/meta/callback`.
-2. Permissions: `ads_read`, `business_management`; у пользователя — доступ к рекламному кабинету (для dev mode — роль в app).
-3. В `/etc/adforge-mcp/adforge-mcp.env` добавить: `AD_MCP_META_OAUTH_APP_ID`, `AD_MCP_META_OAUTH_APP_SECRET` (только на сервере).
-4. `sudo systemctl restart adforge-mcp-web adforge-mcp-http`.
+Примечание: в legacy `mcp-for-ads` есть 3 готовых Meta app (Varikoza/Interna/Pallada), но их секреты git-скомпрометированы (см. SECURITY ISSUE). Можно переиспользовать один из этих app для hosted OAuth **только после rotate секрета**.
+
+1. Выбрать один Meta app под hosted OAuth (или создать новый Business app).
+2. **Rotate** его `app_secret` (Meta App Dashboard → Settings → Basic → Reset), если используется legacy app.
+3. В Meta App Dashboard: Facebook Login → Settings → Valid OAuth Redirect URIs: `https://77.240.38.131.sslip.io/oauth/meta/callback`.
+4. Permissions: `ads_read`, `business_management`; у пользователя — доступ к рекламному кабинету (для dev mode — роль в app).
+5. В `/etc/adforge-mcp/adforge-mcp.env` добавить: `AD_MCP_META_OAUTH_APP_ID`, `AD_MCP_META_OAUTH_APP_SECRET` (свежий, только на сервере).
+6. `sudo systemctl restart adforge-mcp-web adforge-mcp-http`.
 5. Dashboard → Connections → Connect Meta Ads → OAuth → выбрать аккаунты → Save → Run diagnostics.
 6. MCP: `list_ad_accounts`, `list_campaigns platform=meta_ads`, `get_basic_metrics` за 7 дней.
 
@@ -125,7 +169,9 @@ Journal logs (`adforge-mcp-web`, `adforge-mcp-http`, последние 300 ст
 
 Блокеры demo с реальными рекламными данными:
 
-1. Meta OAuth credentials в live env — `needs_credentials`.
-2. Google OAuth credentials + developer token в live env — `needs_credentials`.
+1. Meta OAuth credentials в live env — `needs_credentials`. На VPS найдены 3 legacy Meta app, но их секреты git-скомпрометированы → нужен rotate перед использованием + выбор одного app + whitelisting redirect URI.
+2. Google OAuth credentials + developer token в live env — `needs_credentials` (ничего не найдено на VPS).
 3. Live OAuth + выбор аккаунтов в dashboard — после п.1/п.2.
 4. Read tools/metrics и preview-only на реальном аккаунте — после п.3.
+
+Дата последней проверки credential discovery: 2026-06-13.
