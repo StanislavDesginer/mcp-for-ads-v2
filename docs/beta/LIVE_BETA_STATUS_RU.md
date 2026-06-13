@@ -9,6 +9,10 @@
 - `needs_credentials` — заблокировано отсутствием provider credentials в live env;
 - `needs_provider_dashboard_access` — требуется доступ к кабинету провайдера (Meta App Dashboard / Google Cloud Console).
 
+## Dashboard UI
+
+- 2026-06-13: web dashboard полностью переработан (UI/UX redesign, без изменений backend/OAuth/security). Структура: token gate → `Overview` → `Connections` → `Diagnostics`, постоянный бейдж `Preview-only: ON`, честные статусы платформ (`Credentials missing` / `Ready to connect` / `Select accounts` / `Connected` / `Reconnect required`, `Limited beta` для TikTok/Yandex), блок `Connect to MCP client` с `Copy MCP URL`, raw JSON только в accordion. API contract не менялся.
+
 ## Live deployment
 
 - Live URL: `https://77.240.38.131.sslip.io` — `verified_live`.

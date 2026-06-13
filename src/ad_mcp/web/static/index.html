@@ -1,333 +1,125 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AdForge MCP · Операторская консоль</title>
+  <title>AdForge MCP · Beta</title>
   <link rel="stylesheet" href="/assets/app.css">
 </head>
 <body>
   <div id="toast-root" class="toast-root" aria-live="polite" aria-atomic="true"></div>
 
-  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
-  <aside class="drawer" id="preview-drawer" aria-labelledby="drawer-title" aria-hidden="true">
-    <header class="drawer__header">
-      <div>
-        <p class="section-kicker">Preview action</p>
-        <h2 class="drawer__title" id="drawer-title">Предпросмотр действия</h2>
+  <!-- Token gate -->
+  <section id="gate" class="gate" hidden>
+    <div class="gate__card">
+      <div class="gate__brand">
+        <span class="logo-dot" aria-hidden="true"></span>
+        <span class="gate__brand-name">AdForge MCP</span>
+        <span class="chip chip--beta">Beta</span>
       </div>
-      <button id="drawer-close" class="icon-button" type="button" aria-label="Закрыть панель">×</button>
+      <h1 class="gate__title">AdForge MCP Beta</h1>
+      <p class="gate__subtitle">Hosted MCP dashboard for connecting ad accounts to AI clients.</p>
+      <form id="gate-form" class="gate__form">
+        <label class="field">
+          <span class="field__label">Beta access token</span>
+          <input id="gate-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your beta token" required>
+        </label>
+        <button id="gate-submit" class="btn btn--primary btn--block" type="submit">Enter dashboard</button>
+        <p id="gate-error" class="gate__error" hidden>Invalid or missing beta token.</p>
+      </form>
+      <p class="gate__footnote">Dangerous actions are previewed only and will not be applied to ad accounts.</p>
+    </div>
+  </section>
+
+  <!-- App shell -->
+  <div id="app" class="app" hidden>
+    <header class="topbar">
+      <div class="topbar__inner">
+        <div class="topbar__brand">
+          <span class="logo-dot" aria-hidden="true"></span>
+          <span class="topbar__name">AdForge MCP</span>
+          <span class="chip chip--beta">Beta</span>
+        </div>
+        <nav class="topbar__nav" aria-label="Sections">
+          <button type="button" class="nav-tab is-active" data-nav="overview">Overview</button>
+          <button type="button" class="nav-tab" data-nav="connections">Connections</button>
+          <button type="button" class="nav-tab" data-nav="diagnostics">Diagnostics</button>
+        </nav>
+        <div class="topbar__side">
+          <span id="preview-badge" class="badge badge--ok" title="Dangerous actions are previewed only and will not be applied to ad accounts.">Preview-only: ON</span>
+          <button id="signout" type="button" class="btn btn--ghost btn--small">Sign out</button>
+        </div>
+      </div>
     </header>
-    <section id="drawer-risk-flags" class="drawer__risks"></section>
-    <section class="drawer__output-wrap">
-      <h3 class="drawer__subtitle">JSON-ответ</h3>
-      <pre id="drawer-json" class="drawer__json">{}</pre>
-    </section>
-    <footer class="drawer__footer">
-      <p class="drawer__note">Режим безопасного предпросмотра: реальных изменений в Meta Ads не выполняется.</p>
-      <button id="drawer-copy" class="btn btn--secondary" type="button">Копировать JSON</button>
-    </footer>
-  </aside>
 
-  <div class="layout">
-    <aside class="sidebar" aria-label="Навигация и действия">
-      <section class="sidebar-card brand-card">
-        <p class="section-kicker">AdForge MCP</p>
-        <h1 class="brand-card__title">Neuro Ads Operator</h1>
-        <p class="brand-card__description">
-          Внутренний инструмент для Meta Ads: статусы, summaries, diagnostics, preview-действия и готовые MCP-навыки для ИИ.
-        </p>
-      </section>
-
-      <nav class="sidebar-card nav-card" aria-label="Разделы">
-        <h2 class="sidebar-card__title">Разделы</h2>
-        <ul class="nav-list">
-          <li><button type="button" class="nav-button is-active" data-section="skills">Навыки ИИ / MCP</button></li>
-          <li><button type="button" class="nav-button" data-section="connections">Connections</button></li>
-          <li><button type="button" class="nav-button" data-section="overview">Overview / dashboard</button></li>
-          <li><button type="button" class="nav-button" data-section="structure">Campaign structure</button></li>
-          <li><button type="button" class="nav-button" data-section="issues">Delivery issues</button></li>
-          <li><button type="button" class="nav-button" data-section="assets">Connected assets</button></li>
-          <li><button type="button" class="nav-button" data-section="performers">Top performers</button></li>
-          <li><button type="button" class="nav-button" data-section="no-result">No-result spend</button></li>
-          <li><button type="button" class="nav-button" data-section="diagnostics">Диагностика</button></li>
-        </ul>
-      </nav>
-
-      <section class="sidebar-card actions-card" aria-label="Preview действия">
-        <header class="actions-card__header">
-          <h2 class="sidebar-card__title">Preview actions</h2>
-          <p class="actions-card__description">Формы ниже вызывают только preview-роуты без записи.</p>
-        </header>
-
-        <div class="action-tabs" role="tablist" aria-label="Тип preview-действия">
-          <button class="action-tab is-active" id="tab-clone" data-action-tab="clone" role="tab" aria-controls="panel-clone" aria-selected="true" type="button">Clone</button>
-          <button class="action-tab" id="tab-budget" data-action-tab="budget" role="tab" aria-controls="panel-budget" aria-selected="false" type="button">Budget</button>
-          <button class="action-tab" id="tab-pause" data-action-tab="pause" role="tab" aria-controls="panel-pause" aria-selected="false" type="button">Pause ads</button>
+    <main class="main">
+      <!-- Overview -->
+      <section id="section-overview" class="section" data-section="overview">
+        <div class="section-head">
+          <h2>Overview</h2>
+          <p class="section-head__sub">Hosted beta status and the path from ad accounts to your AI client.</p>
         </div>
-
-        <div class="action-tab-panels">
-          <section class="action-panel is-active" id="panel-clone" role="tabpanel" aria-labelledby="tab-clone">
-            <form id="form-clone" class="action-form">
-              <label class="form-field">
-                <span>ID исходной кампании</span>
-                <input type="text" name="source_campaign_id" placeholder="120243628303150308" required>
-              </label>
-              <label class="form-field">
-                <span>Новое название</span>
-                <input type="text" name="new_name" placeholder="Клон для теста">
-              </label>
-              <label class="form-field">
-                <span>Статус новой кампании</span>
-                <select name="status">
-                  <option value="PAUSED">PAUSED</option>
-                  <option value="ACTIVE">ACTIVE</option>
-                </select>
-              </label>
-              <label class="form-field">
-                <span>Дневной бюджет (USD)</span>
-                <input type="number" name="daily_budget" min="0" step="0.01" placeholder="20">
-              </label>
-              <label class="form-field">
-                <span>Lifetime budget (USD)</span>
-                <input type="number" name="lifetime_budget" min="0" step="0.01" placeholder="1000">
-              </label>
-              <button class="btn btn--primary submit-button" type="submit">Сформировать preview</button>
-            </form>
-          </section>
-
-          <section class="action-panel" id="panel-budget" role="tabpanel" aria-labelledby="tab-budget" hidden>
-            <form id="form-budget" class="action-form">
-              <label class="form-field">
-                <span>ID кампании</span>
-                <input type="text" name="campaign_id" placeholder="120243628303150308" required>
-              </label>
-              <label class="form-field">
-                <span>Новый дневной бюджет (USD)</span>
-                <input type="number" name="daily_budget" min="0" step="0.01" placeholder="35">
-              </label>
-              <label class="form-field">
-                <span>Новый lifetime budget (USD)</span>
-                <input type="number" name="lifetime_budget" min="0" step="0.01" placeholder="1200">
-              </label>
-              <label class="form-field">
-                <span>Ограничение spend cap (USD)</span>
-                <input type="number" name="spend_cap" min="0" step="0.01" placeholder="1500">
-              </label>
-              <label class="form-field">
-                <span>Изменение бюджета (%)</span>
-                <input type="number" name="budget_delta_percent" step="0.01" placeholder="15">
-              </label>
-              <button class="btn btn--primary submit-button" type="submit">Сформировать preview</button>
-            </form>
-          </section>
-
-          <section class="action-panel" id="panel-pause" role="tabpanel" aria-labelledby="tab-pause" hidden>
-            <form id="form-pause" class="action-form">
-              <label class="form-field">
-                <span>ID объявлений (через запятую или новую строку)</span>
-                <textarea name="ids" rows="5" placeholder="120237745682780308, 120237745682780309" required></textarea>
-              </label>
-              <button class="btn btn--primary submit-button" type="submit">Сформировать preview</button>
-            </form>
-          </section>
+        <div id="overview-notice"></div>
+        <div id="overview-stats" class="stats-grid">
+          <div class="empty-state"><p>Loading status…</p></div>
         </div>
-      </section>
-    </aside>
-
-    <main class="main" aria-live="polite">
-      <header class="topbar">
-        <div class="topbar__title-group">
-          <p class="section-kicker">Meta Ads account</p>
-          <h2 id="topbar-account-name">Загрузка аккаунта…</h2>
-        </div>
-        <div class="topbar__controls">
-          <label class="inline-field">
-            <span>Аккаунт</span>
-            <select id="filter-account-id">
-              <option value="">Загрузка списка…</option>
-            </select>
-          </label>
-          <label class="inline-field">
-            <span>Дата отчёта</span>
-            <input id="filter-end-date" type="date">
-          </label>
-          <button id="apply-filters" type="button" class="btn btn--secondary">Применить</button>
-          <button id="refresh-all" type="button" class="btn btn--primary">Обновить всё</button>
-        </div>
-        <div class="topbar__status">
-          <span class="status-dot is-loading" id="status-dot" aria-hidden="true"></span>
-          <span id="status-text">Подключение…</span>
-          <span id="last-refresh-time" class="last-refresh-time"></span>
-        </div>
-      </header>
-
-      <section id="skills" class="content-section is-active" data-section-panel>
-        <header class="section-header">
-          <h3>Навыки ИИ / MCP</h3>
-          <p>Готовые skill-сценарии для Codex и других MCP-клиентов без внешних скриптов: отчёт, бюджет, отключения и масштабирование.</p>
-        </header>
-        <div class="assistant-shell">
-          <div class="assistant-shell__prompt">
-            <label class="inline-field inline-field--grow">
-              <span>Готовый prompt для ИИ</span>
-              <textarea id="skills-prompt-box" rows="4" readonly placeholder="Выберите навык, чтобы получить готовый prompt для MCP."></textarea>
-            </label>
-            <div class="assistant-shell__actions">
-              <button id="skills-copy-prompt" type="button" class="btn btn--secondary">Копировать prompt</button>
-              <button id="skills-run-selected" type="button" class="btn btn--primary">Запустить выбранный навык</button>
+        <div class="grid-2">
+          <article class="card">
+            <h3 class="card__title">Next steps</h3>
+            <ol id="next-steps" class="steps"></ol>
+          </article>
+          <article class="card mcp-card">
+            <h3 class="card__title">Connect to MCP client</h3>
+            <p class="card__hint">Use this URL in Codex / Claude / another MCP client. Pass your beta token as Bearer authorization.</p>
+            <div class="mcp-url-row">
+              <code id="mcp-url" class="mcp-url">—</code>
+              <button id="copy-mcp-url" type="button" class="btn btn--secondary btn--small">Copy MCP URL</button>
             </div>
-          </div>
-          <div id="skills-catalog" class="skill-grid"></div>
+            <pre class="code-block">Authorization: Bearer &lt;BETA_TOKEN&gt;</pre>
+          </article>
         </div>
-        <article class="panel-card">
-          <h4>Результат выбранного навыка</h4>
-          <div id="skills-result"></div>
-        </article>
       </section>
 
-      <section id="connections" class="content-section" data-section-panel hidden>
-        <header class="section-header section-header--with-action">
+      <!-- Connections -->
+      <section id="section-connections" class="section" data-section="connections" hidden>
+        <div class="section-head section-head--row">
           <div>
-            <h3>Connections</h3>
-            <p>Hosted OAuth connectors for ad platforms. Connect an account here, then use it through AdForge MCP in Codex, Claude, or another MCP client.</p>
+            <h2>Connections</h2>
+            <p class="section-head__sub">Connect ad platforms via OAuth, then use them through hosted MCP tools.</p>
           </div>
-          <button id="connections-refresh" type="button" class="btn btn--secondary">Refresh</button>
-        </header>
-        <div id="connections-content"></div>
-      </section>
-
-      <section id="overview" class="content-section" data-section-panel hidden>
-        <header class="section-header">
-          <h3>Overview / dashboard</h3>
-          <p>Общие KPI кабинета, структура по статусам и быстрый снимок аккаунта.</p>
-        </header>
-        <article class="panel-card overview-hero">
-          <h4>Операторская сводка</h4>
-          <p id="overview-headline" class="overview-hero__headline">Сводка загружается…</p>
-          <div id="overview-operator-summary" class="result-stack"></div>
-        </article>
-        <div id="overview-metrics" class="metrics-grid"></div>
-        <div class="panel-grid panel-grid--two">
-          <article class="panel-card">
-            <h4>Паспорт аккаунта</h4>
-            <div id="overview-account"></div>
-          </article>
-          <article class="panel-card">
-            <h4>Статусы сущностей</h4>
-            <div id="overview-statuses"></div>
-          </article>
+          <button id="connections-refresh" type="button" class="btn btn--secondary btn--small">Refresh</button>
+        </div>
+        <div id="connections-notice"></div>
+        <div id="pending-panel"></div>
+        <div id="connections-list" class="cards-col">
+          <div class="empty-state"><p>Loading connections…</p></div>
         </div>
       </section>
 
-      <section id="structure" class="content-section" data-section-panel hidden>
-        <header class="section-header">
-          <h3>Campaign structure</h3>
-          <p>Иерархия кампаний, ad set и объявлений по текущему кабинету.</p>
-        </header>
-        <div id="structure-content"></div>
-      </section>
-
-      <section id="issues" class="content-section" data-section-panel hidden>
-        <header class="section-header">
-          <h3>Delivery issues</h3>
-          <p>Проблемы доставки и модерации, требующие реакции оператора.</p>
-        </header>
-        <div id="issues-content"></div>
-      </section>
-
-      <section id="assets" class="content-section" data-section-panel hidden>
-        <header class="section-header">
-          <h3>Connected assets</h3>
-          <p>Связанные страницы, Instagram, пиксели и конверсии.</p>
-        </header>
-        <div id="assets-content"></div>
-      </section>
-
-      <section id="performers" class="content-section" data-section-panel hidden>
-        <header class="section-header">
-          <h3>Top performers</h3>
-          <p>Лучшие сущности по эффективности за выбранное окно.</p>
-        </header>
-        <div class="section-filter">
-          <label class="inline-field">
-            <span>Уровень</span>
-            <select id="performers-level">
-              <option value="campaign">campaign</option>
-              <option value="adset">adset</option>
-              <option value="ad">ad</option>
-            </select>
-          </label>
-          <label class="inline-field">
-            <span>Метрика</span>
-            <select id="performers-metric">
-              <option value="cost_per_result">cost_per_result</option>
-              <option value="spend">spend</option>
-              <option value="ctr">ctr</option>
-            </select>
-          </label>
-          <label class="inline-field">
-            <span>Lookback (дней)</span>
-            <input id="performers-lookback" type="number" min="1" max="90" value="7">
-          </label>
-          <button id="performers-refresh" type="button" class="btn btn--secondary">Обновить раздел</button>
+      <!-- Diagnostics -->
+      <section id="section-diagnostics" class="section" data-section="diagnostics" hidden>
+        <div class="section-head section-head--row">
+          <div>
+            <h2>Diagnostics</h2>
+            <p class="section-head__sub">Service, security, MCP transport and platform health.</p>
+          </div>
+          <div class="section-head__actions">
+            <label class="checkline" title="Also performs a safe read call against each connected provider API.">
+              <input id="diag-live" type="checkbox">
+              <span>Include live provider checks</span>
+            </label>
+            <button id="diag-run" type="button" class="btn btn--primary btn--small">Run full diagnostics</button>
+          </div>
         </div>
-        <div id="performers-content"></div>
-      </section>
-
-      <section id="no-result" class="content-section" data-section-panel hidden>
-        <header class="section-header">
-          <h3>No-result spend</h3>
-          <p>Сущности с расходом без конверсий для приоритезации проверок.</p>
-        </header>
-        <div class="section-filter">
-          <label class="inline-field">
-            <span>Уровень</span>
-            <select id="waste-level">
-              <option value="ad">ad</option>
-              <option value="adset">adset</option>
-              <option value="campaign">campaign</option>
-            </select>
-          </label>
-          <label class="inline-field">
-            <span>Lookback (дней)</span>
-            <input id="waste-lookback" type="number" min="1" max="90" value="7">
-          </label>
-          <label class="inline-field">
-            <span>Мин. расход (USD)</span>
-            <input id="waste-min-spend" type="number" min="0" step="0.01" value="20">
-          </label>
-          <button id="waste-refresh" type="button" class="btn btn--secondary">Обновить раздел</button>
+        <div id="diagnostics-content">
+          <div class="empty-state"><p>Run diagnostics to see the current service health.</p></div>
         </div>
-        <div id="waste-content"></div>
-      </section>
-
-      <section id="diagnostics" class="content-section" data-section-panel hidden>
-        <header class="section-header">
-          <h3>Диагностика</h3>
-          <p>Проверка server runtime configuration, env-подстановок и авторизации Meta API по каждому кабинету.</p>
-        </header>
-
-        <div class="section-filter">
-          <button id="diagnostics-refresh" type="button" class="btn btn--secondary">Обновить диагностику</button>
-          <a class="btn btn--secondary" href="/api/meta/config-diagnostics" target="_blank" rel="noopener noreferrer">Config JSON</a>
-          <a class="btn btn--secondary" href="/api/meta/auth-diagnostics" target="_blank" rel="noopener noreferrer">Auth JSON</a>
-          <a class="btn btn--secondary" href="/api/meta/persistence" target="_blank" rel="noopener noreferrer">Persistence JSON</a>
-          <a class="btn btn--secondary" href="/api/meta/debug-health" target="_blank" rel="noopener noreferrer">Debug health JSON</a>
-          <a class="btn btn--secondary" href="/api/meta/data-contract" target="_blank" rel="noopener noreferrer">Data contract JSON</a>
-        </div>
-
-        <div id="diagnostics-health" class="panel-grid panel-grid--two"></div>
-        <div id="diagnostics-config"></div>
-        <div id="diagnostics-auth"></div>
-        <div id="diagnostics-persistence"></div>
-        <div id="diagnostics-contract"></div>
-        <article class="panel-card" id="diagnostics-troubleshooting">
-          <h4>Troubleshooting</h4>
-          <div id="diagnostics-troubleshooting-content"></div>
-        </article>
       </section>
     </main>
+
+    <footer class="footer">
+      <p>AdForge MCP hosted beta · Preview-only mode: dangerous actions are previewed, never applied.</p>
+    </footer>
   </div>
 
   <script src="/assets/app.js"></script>

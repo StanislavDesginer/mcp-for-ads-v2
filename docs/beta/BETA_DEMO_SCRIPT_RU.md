@@ -14,19 +14,28 @@
 - получает accounts/campaigns/metrics через MCP tools;
 - опасные действия видит только в preview.
 
-## 1. Открытие
+## 1. Открытие и вход
 
 Коротко сказать:
 
 > AdForge MCP не требует от клиента скачивать проект или запускать сервер. Сервер уже развернут на VPS/WPS. Клиент подключает рекламные кабинеты через dashboard и использует hosted MCP endpoint в Codex, Claude или другом MCP-клиенте.
 
-Показать:
+Показать token gate:
 
-- dashboard URL;
-- beta token flow;
-- hosted MCP URL в dashboard.
+- экран `AdForge MCP Beta` с полем `Beta access token`;
+- ввести beta token, нажать `Enter dashboard`;
+- токен после входа нигде не показывается; в header есть `Sign out`.
 
-## 2. Connections dashboard
+## 2. Overview
+
+Показать раздел `Overview`:
+
+- бейдж `Preview-only: ON` в header;
+- счётчики connected platforms / connected accounts;
+- live URL и блок `Connect to MCP client` с `Copy MCP URL`;
+- список `Next steps` (выполненные шаги отмечены галочкой).
+
+## 3. Connections dashboard
 
 Открыть `Connections`.
 

@@ -1,1435 +1,822 @@
-﻿(function () {
-  const TOKEN_STORAGE_KEY = "ad_mcp_web_api_token";
+/* AdForge MCP hosted beta dashboard.
+   Onboarding flow: token gate -> Overview -> Connections -> Diagnostics.
+   Uses only existing hosted/diagnostics endpoints. Never renders the beta token
+   or provider secrets. */
+(function () {
+  "use strict";
+
+  const TOKEN_KEY = "ad_mcp_web_api_token";
+
+  const PROVIDER_SLUG = {
+    meta_ads: "meta",
+    google_ads: "google",
+    tiktok_ads: "tiktok",
+    yandex_direct: "yandex",
+  };
+
+  const PROVIDER_DESC = {
+    meta_ads: "Read campaigns, statuses and metrics from Meta Ads accounts.",
+    google_ads: "Read campaigns, statuses and metrics from Google Ads customer accounts.",
+    tiktok_ads: "Limited beta: OAuth groundwork only. Campaigns and metrics may be not available.",
+    yandex_direct: "Limited beta: OAuth groundwork only. Campaigns and metrics may be not available.",
+  };
+
+  const LIMITED_BETA = new Set(["tiktok_ads", "yandex_direct"]);
 
   const state = {
-    accountId: "",
-    endDate: new Date().toISOString().slice(0, 10),
-    workspace: null,
-    selectedSkillId: "collect_report",
-    selectedSkill: null,
-    diagnosticsLoaded: false,
-    connectionsLoaded: false,
-    activePendingSelection: null,
-    connectionNotice: null,
-    currentSection: "skills",
+    section: "overview",
+    capabilities: null,
+    connections: null,
+    activePending: null,
+    notice: null,
+    diagnosticsRun: false,
   };
 
-  const el = {
-    statusDot: document.getElementById("status-dot"),
-    statusText: document.getElementById("status-text"),
-    lastRefreshTime: document.getElementById("last-refresh-time"),
-    topbarAccountName: document.getElementById("topbar-account-name"),
-    filterAccountId: document.getElementById("filter-account-id"),
-    filterEndDate: document.getElementById("filter-end-date"),
-    applyFilters: document.getElementById("apply-filters"),
-    refreshAll: document.getElementById("refresh-all"),
-    navButtons: Array.from(document.querySelectorAll(".nav-button")),
-    panels: Array.from(document.querySelectorAll("[data-section-panel]")),
-    overviewHeadline: document.getElementById("overview-headline"),
-    overviewOperatorSummary: document.getElementById("overview-operator-summary"),
-    overviewMetrics: document.getElementById("overview-metrics"),
-    overviewAccount: document.getElementById("overview-account"),
-    overviewStatuses: document.getElementById("overview-statuses"),
-    structureContent: document.getElementById("structure-content"),
-    issuesContent: document.getElementById("issues-content"),
-    assetsContent: document.getElementById("assets-content"),
-    performersContent: document.getElementById("performers-content"),
-    performersLevel: document.getElementById("performers-level"),
-    performersMetric: document.getElementById("performers-metric"),
-    performersLookback: document.getElementById("performers-lookback"),
-    performersRefresh: document.getElementById("performers-refresh"),
-    wasteContent: document.getElementById("waste-content"),
-    wasteLevel: document.getElementById("waste-level"),
-    wasteLookback: document.getElementById("waste-lookback"),
-    wasteMinSpend: document.getElementById("waste-min-spend"),
-    wasteRefresh: document.getElementById("waste-refresh"),
-    diagnosticsHealth: document.getElementById("diagnostics-health"),
-    diagnosticsConfig: document.getElementById("diagnostics-config"),
-    diagnosticsAuth: document.getElementById("diagnostics-auth"),
-    diagnosticsPersistence: document.getElementById("diagnostics-persistence"),
-    diagnosticsContract: document.getElementById("diagnostics-contract"),
-    diagnosticsTroubleshooting: document.getElementById("diagnostics-troubleshooting-content"),
-    diagnosticsRefresh: document.getElementById("diagnostics-refresh"),
-    connectionsContent: document.getElementById("connections-content"),
-    connectionsRefresh: document.getElementById("connections-refresh"),
-    skillsCatalog: document.getElementById("skills-catalog"),
-    skillsPromptBox: document.getElementById("skills-prompt-box"),
-    skillsCopyPrompt: document.getElementById("skills-copy-prompt"),
-    skillsRunSelected: document.getElementById("skills-run-selected"),
-    skillsResult: document.getElementById("skills-result"),
-    drawer: document.getElementById("preview-drawer"),
-    drawerBackdrop: document.getElementById("drawer-backdrop"),
-    drawerClose: document.getElementById("drawer-close"),
-    drawerCopy: document.getElementById("drawer-copy"),
-    drawerJson: document.getElementById("drawer-json"),
-    drawerRiskFlags: document.getElementById("drawer-risk-flags"),
-    actionTabs: Array.from(document.querySelectorAll(".action-tab")),
-    actionPanels: Array.from(document.querySelectorAll(".action-panel")),
-    formClone: document.getElementById("form-clone"),
-    formBudget: document.getElementById("form-budget"),
-    formPause: document.getElementById("form-pause"),
-    toastRoot: document.getElementById("toast-root"),
-  };
+  const el = {};
 
-  const api = {
-    workspace: (params) => requestJson(`/api/meta/workspace${withQuery(params)}`),
-    performers: (params) => requestJson(`/api/meta/top-performers${withQuery(params)}`),
-    noResult: (params) => requestJson(`/api/meta/no-result-entities${withQuery(params)}`),
-    configDiagnostics: () => requestJson("/api/meta/config-diagnostics"),
-    authDiagnostics: () => requestJson("/api/meta/auth-diagnostics"),
-    debugHealth: () => requestJson("/api/meta/debug-health"),
-    persistence: () => requestJson("/api/meta/persistence"),
-    dataContract: () => requestJson("/api/meta/data-contract"),
-    hostedConnections: () => requestJson("/api/hosted/connections"),
-    diagnosticsPlatform: (provider, live = false) => requestJson(`/api/diagnostics/platforms/${encodeURIComponent(provider)}${live ? "?live=1" : ""}`),
-    oauthAuthorizeUrl: (providerSlug) => requestJson(`/api/hosted/oauth/${providerSlug}/authorize-url`),
-    oauthPending: (providerSlug, pendingId) => requestJson(`/api/hosted/oauth/${providerSlug}/pending?pending_id=${encodeURIComponent(pendingId)}`),
-    oauthSelect: (providerSlug, payload) => requestJson(`/api/hosted/oauth/${providerSlug}/select`, "POST", payload),
-    disconnectProvider: (provider) => requestJson("/api/hosted/connections/disconnect", "POST", { provider }),
-    budgetSkill: (params) => requestJson(`/api/meta/skills/budget-summary${withQuery(params)}`),
-    disableSkill: (params) => requestJson(`/api/meta/skills/disable-candidates${withQuery(params)}`),
-    scaleSkill: (params) => requestJson(`/api/meta/skills/scale-candidates${withQuery(params)}`),
-    reportSkill: (params) => requestJson(`/api/meta/skills/collect-report${withQuery(params)}`),
-    previewClone: (payload) => requestJson("/api/meta/preview/clone-campaign", "POST", payload),
-    previewBudget: (payload) => requestJson("/api/meta/preview/update-campaign-budget", "POST", payload),
-    previewPause: (payload) => requestJson("/api/meta/preview/pause-ads", "POST", payload),
-  };
+  /* ---------- boot ---------- */
 
-  function init() {
-    el.filterEndDate.value = state.endDate;
-    hydrateConnectionStateFromUrl();
-    bindNavigation();
-    bindTopbar();
-    bindSectionRefreshers();
-    bindSkills();
-    bindDrawer();
-    bindPreviewForms();
-    bindActionTabs();
-    setActiveSection(initialSectionFromUrl());
-    refreshAll();
-    if (state.currentSection === "connections") {
-      loadConnections(true);
+  document.addEventListener("DOMContentLoaded", () => {
+    cache();
+    bindGate();
+    bindShell();
+    boot();
+  });
+
+  function cache() {
+    el.gate = document.getElementById("gate");
+    el.gateForm = document.getElementById("gate-form");
+    el.gateToken = document.getElementById("gate-token");
+    el.gateSubmit = document.getElementById("gate-submit");
+    el.gateError = document.getElementById("gate-error");
+    el.app = document.getElementById("app");
+    el.navTabs = Array.from(document.querySelectorAll(".nav-tab"));
+    el.sections = Array.from(document.querySelectorAll("[data-section]"));
+    el.previewBadge = document.getElementById("preview-badge");
+    el.signout = document.getElementById("signout");
+    el.overviewNotice = document.getElementById("overview-notice");
+    el.overviewStats = document.getElementById("overview-stats");
+    el.nextSteps = document.getElementById("next-steps");
+    el.mcpUrl = document.getElementById("mcp-url");
+    el.copyMcpUrl = document.getElementById("copy-mcp-url");
+    el.connectionsNotice = document.getElementById("connections-notice");
+    el.pendingPanel = document.getElementById("pending-panel");
+    el.connectionsList = document.getElementById("connections-list");
+    el.connectionsRefresh = document.getElementById("connections-refresh");
+    el.diagLive = document.getElementById("diag-live");
+    el.diagRun = document.getElementById("diag-run");
+    el.diagnosticsContent = document.getElementById("diagnostics-content");
+    el.toastRoot = document.getElementById("toast-root");
+  }
+
+  async function boot() {
+    try {
+      state.capabilities = await api("/api/beta/capabilities");
+      enterApp();
+    } catch (error) {
+      showGate(error.status === 401 ? "" : humanizeError(error));
     }
   }
 
-  function bindNavigation() {
-    el.navButtons.forEach((button) => {
-      button.addEventListener("click", async () => {
-        const section = button.dataset.section;
-        setActiveSection(section);
-        if (section === "diagnostics" && !state.diagnosticsLoaded) {
-          await loadDiagnostics(true);
-        }
-        if (section === "connections" && !state.connectionsLoaded) {
-          await loadConnections(true);
-        }
-      });
-    });
-  }
+  /* ---------- token gate ---------- */
 
-  function bindTopbar() {
-    el.applyFilters.addEventListener("click", () => {
-      syncFiltersFromForm();
-      refreshAll();
-    });
-    el.refreshAll.addEventListener("click", () => {
-      syncFiltersFromForm();
-      refreshAll();
-    });
-  }
-
-  function bindSectionRefreshers() {
-    el.performersRefresh.addEventListener("click", () => {
-      syncFiltersFromForm();
-      loadPerformers();
-    });
-    el.wasteRefresh.addEventListener("click", () => {
-      syncFiltersFromForm();
-      loadNoResultSpend();
-    });
-    el.diagnosticsRefresh.addEventListener("click", () => {
-      loadDiagnostics();
-    });
-    el.connectionsRefresh.addEventListener("click", () => {
-      loadConnections();
-    });
-  }
-
-  function bindSkills() {
-    el.skillsCopyPrompt.addEventListener("click", async () => {
-      const text = el.skillsPromptBox.value.trim();
-      if (!text) {
-        toast("Сначала выберите навык.", "info");
+  function bindGate() {
+    el.gateForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const token = el.gateToken.value.trim();
+      if (!token) {
+        showGateError("Invalid or missing beta token.");
         return;
       }
-      await copyText(text);
-      toast("Prompt скопирован.", "success");
-    });
-
-    el.skillsRunSelected.addEventListener("click", () => {
-      runSelectedSkill();
-    });
-  }
-
-  function bindDrawer() {
-    const close = () => {
-      el.drawer.classList.remove("is-open");
-      el.drawer.setAttribute("aria-hidden", "true");
-      el.drawerBackdrop.hidden = true;
-    };
-
-    el.drawerClose.addEventListener("click", close);
-    el.drawerBackdrop.addEventListener("click", close);
-    el.drawerCopy.addEventListener("click", async () => {
-      await copyText(el.drawerJson.textContent || "");
-      toast("JSON скопирован.", "success");
-    });
-  }
-
-  function bindActionTabs() {
-    el.actionTabs.forEach((tab) => {
-      tab.addEventListener("click", () => {
-        const target = tab.dataset.actionTab;
-        el.actionTabs.forEach((item) => {
-          const active = item === tab;
-          item.classList.toggle("is-active", active);
-          item.setAttribute("aria-selected", String(active));
-        });
-        el.actionPanels.forEach((panel) => {
-          const active = panel.id === `panel-${target}`;
-          panel.classList.toggle("is-active", active);
-          panel.hidden = !active;
-        });
-      });
-    });
-  }
-
-  function bindPreviewForms() {
-    el.formClone.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = new FormData(el.formClone);
-      await submitPreview(event.submitter, () =>
-        api.previewClone({
-          account_id: state.accountId,
-          source_campaign_id: form.get("source_campaign_id"),
-          new_name: emptyToNull(form.get("new_name")),
-          status: form.get("status"),
-          daily_budget: toNumberOrNull(form.get("daily_budget")),
-          lifetime_budget: toNumberOrNull(form.get("lifetime_budget")),
-        }),
-      );
-    });
-
-    el.formBudget.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = new FormData(el.formBudget);
-      await submitPreview(event.submitter, () =>
-        api.previewBudget({
-          account_id: state.accountId,
-          campaign_id: form.get("campaign_id"),
-          daily_budget: toNumberOrNull(form.get("daily_budget")),
-          lifetime_budget: toNumberOrNull(form.get("lifetime_budget")),
-          spend_cap: toNumberOrNull(form.get("spend_cap")),
-          budget_delta_percent: toNumberOrNull(form.get("budget_delta_percent")),
-        }),
-      );
-    });
-
-    el.formPause.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = new FormData(el.formPause);
-      await submitPreview(event.submitter, () =>
-        api.previewPause({
-          account_id: state.accountId,
-          ids: parseIds(form.get("ids")),
-        }),
-      );
-    });
-  }
-
-  async function submitPreview(button, action) {
-    const submitButton = button || document.activeElement;
-    if (submitButton) {
-      submitButton.classList.add("is-loading");
-      submitButton.disabled = true;
-    }
-    try {
-      const preview = await action();
-      renderPreview(preview);
-      toast("Preview собран.", "success");
-    } catch (error) {
-      toast(error.message || "Не удалось собрать preview.", "error");
-    } finally {
-      if (submitButton) {
-        submitButton.classList.remove("is-loading");
-        submitButton.disabled = false;
+      setLoading(el.gateSubmit, true);
+      setToken(token);
+      try {
+        state.capabilities = await api("/api/beta/capabilities");
+        hideGateError();
+        enterApp();
+      } catch (error) {
+        clearToken();
+        showGateError(error.status === 401 ? "Invalid or missing beta token." : humanizeError(error));
+      } finally {
+        setLoading(el.gateSubmit, false);
       }
-    }
-  }
-
-  async function refreshAll() {
-    setStatus("loading", "Обновляю данные…");
-    try {
-      await loadWorkspace();
-      setStatus(
-        state.workspace?.warnings?.length ? "warning" : "ok",
-        state.workspace?.warnings?.length ? "Данные обновлены частично" : "Данные обновлены",
-      );
-    } catch (error) {
-      const message = humanizeError(error);
-      setStatus("error", message);
-      renderError(el.overviewMetrics, message || "Не удалось загрузить workspace.");
-    } finally {
-      el.lastRefreshTime.textContent = `Обновлено: ${new Date().toLocaleTimeString("ru-RU")}`;
-    }
-  }
-
-  async function loadWorkspace() {
-    const payload = await api.workspace({
-      account_id: state.accountId || undefined,
-      end_date: state.endDate || undefined,
     });
-    state.workspace = payload;
-    state.accountId = payload.account_id || state.accountId;
-    populateAccountSelect(payload.header?.available_accounts || []);
-    if (state.accountId) {
-      el.filterAccountId.value = state.accountId;
-    }
-    el.topbarAccountName.textContent = payload.header?.account_name || payload.account_id || "Meta Ads account";
-    renderOverview(payload);
-    renderStructure(payload.sections?.structure || {});
-    renderIssues(payload.sections?.issues || {});
-    renderAssets(payload.sections?.assets || {});
-    renderPerformers(payload.sections?.performers || {});
-    renderNoResult(payload.sections?.no_result || {});
-    renderDiagnosticsFromWorkspace(payload);
-    renderSkillCatalog(payload.skills?.catalog || []);
-    renderSelectedSkillFromWorkspace();
-    if (Array.isArray(payload.warnings) && payload.warnings.length) {
-      toast(payload.warnings[0], "info");
-    }
   }
 
-  async function loadPerformers() {
-    renderLoading(el.performersContent, "Обновляем top performers…");
-    try {
-      const payload = await api.performers({
-        account_id: state.accountId,
-        end_date: state.endDate,
-        entity_level: el.performersLevel.value,
-        metric: el.performersMetric.value,
-        lookback_days: el.performersLookback.value || "7",
-        limit: "8",
-      });
-      renderPerformers(payload);
-    } catch (error) {
-      renderError(el.performersContent, error.message || "Не удалось обновить top performers.");
-    }
+  function showGate(message) {
+    el.app.hidden = true;
+    el.gate.hidden = false;
+    el.gateToken.value = "";
+    if (message) showGateError(message);
+    else hideGateError();
+    el.gateToken.focus();
   }
 
-  async function loadNoResultSpend() {
-    renderLoading(el.wasteContent, "Обновляем no-result spend…");
-    try {
-      const payload = await api.noResult({
-        account_id: state.accountId,
-        end_date: state.endDate,
-        entity_level: el.wasteLevel.value,
-        lookback_days: el.wasteLookback.value || "7",
-        min_spend: el.wasteMinSpend.value || "20",
-        limit: "12",
-      });
-      renderNoResult(payload);
-    } catch (error) {
-      renderError(el.wasteContent, error.message || "Не удалось обновить список сущностей без результата.");
-    }
+  function showGateError(message) {
+    el.gateError.textContent = message;
+    el.gateError.hidden = false;
   }
 
-  async function loadDiagnostics(quiet = false) {
-    renderLoading(el.diagnosticsHealth, "Проверяем конфигурацию…");
-    try {
-      const [health, config, auth, persistence, contract] = await Promise.all([
-        api.debugHealth(),
-        api.configDiagnostics(),
-        api.authDiagnostics(),
-        api.persistence(),
-        api.dataContract(),
-      ]);
-      renderDiagnostics(health, config, auth, persistence, contract);
-      state.diagnosticsLoaded = true;
-    } catch (error) {
-      const message = humanizeError(error);
-      renderError(el.diagnosticsHealth, message || "Не удалось обновить диагностику.");
-      if (!quiet) {
-        toast(message, "error");
-      }
-    }
+  function hideGateError() {
+    el.gateError.hidden = true;
   }
 
-  async function loadConnections(quiet = false) {
-    renderLoading(el.connectionsContent, "Loading hosted connections…");
-    try {
-      const payload = await api.hostedConnections();
-      await loadPendingSelectionFromUrl();
-      renderConnections(payload);
-      state.connectionsLoaded = true;
-    } catch (error) {
-      const message = humanizeError(error);
-      renderError(el.connectionsContent, message || "Could not load hosted connections.");
-      if (!quiet) {
-        toast(message, "error");
-      }
-    }
+  /* ---------- app shell ---------- */
+
+  function bindShell() {
+    el.navTabs.forEach((tab) => tab.addEventListener("click", () => setSection(tab.dataset.nav)));
+    el.signout.addEventListener("click", () => {
+      clearToken();
+      state.capabilities = null;
+      state.connections = null;
+      state.activePending = null;
+      showGate();
+    });
+    el.connectionsRefresh.addEventListener("click", () => loadConnections());
+    el.diagRun.addEventListener("click", () => runDiagnostics());
+    el.copyMcpUrl.addEventListener("click", async () => {
+      const url = el.mcpUrl.textContent.trim();
+      if (!url || url === "—") return;
+      await copyText(url);
+      toast("MCP URL copied.", "success");
+    });
   }
 
-  async function loadPendingSelectionFromUrl() {
+  function enterApp() {
+    el.gate.hidden = true;
+    el.app.hidden = false;
+    applyPreviewBadge(state.capabilities);
     const params = new URLSearchParams(window.location.search);
-    const provider = params.get("provider") || "";
-    const pendingId = params.get("pending_id") || "";
-    if (!provider || !pendingId || state.activePendingSelection?.pending_id === pendingId) {
+    const oauthError = params.get("oauth_error");
+    const returnedProvider = params.get("provider");
+    const pendingId = params.get("pending_id");
+    const requested = params.get("section");
+    if (oauthError) {
+      state.notice = { tone: "error", text: humanizeError(oauthError) };
+    } else if (pendingId && returnedProvider) {
+      state.notice = { tone: "info", text: "OAuth completed. Select the ad accounts AdForge MCP can use." };
+    }
+    cleanUrl();
+    if (pendingId && returnedProvider) {
+      setSection("connections");
+      loadConnections().then(() => loadPending(returnedProvider, pendingId));
       return;
     }
-    const providerSlug = oauthSlug(provider);
-    if (!providerSlug) {
-      return;
-    }
-    try {
-      state.activePendingSelection = await api.oauthPending(providerSlug, pendingId);
-      state.connectionNotice = {
-        tone: "info",
-        text: "OAuth completed. Select the ad accounts that AdForge MCP can use.",
-      };
-    } catch (error) {
-      state.activePendingSelection = null;
-      state.connectionNotice = { tone: "error", text: humanizeError(error) };
+    setSection(requested && isKnownSection(requested) ? requested : "overview");
+  }
+
+  function isKnownSection(section) {
+    return el.navTabs.some((tab) => tab.dataset.nav === section);
+  }
+
+  function setSection(section) {
+    state.section = isKnownSection(section) ? section : "overview";
+    el.navTabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.nav === state.section));
+    el.sections.forEach((node) => {
+      node.hidden = node.dataset.section !== state.section;
+    });
+    if (state.section === "overview") loadOverview();
+    if (state.section === "connections") loadConnections();
+    if (state.section === "diagnostics" && !state.diagnosticsRun) {
+      el.diagnosticsContent.innerHTML = emptyState("Run diagnostics to see the current service health.");
     }
   }
 
-  async function startOAuth(provider, button) {
-    const providerSlug = oauthSlug(provider);
-    if (!providerSlug) {
-      toast("OAuth is not available for this provider yet.", "info");
-      return;
-    }
-    button.disabled = true;
-    button.classList.add("is-loading");
-    button.textContent = "Connecting…";
+  function applyPreviewBadge(capabilities) {
+    const enabled = capabilities?.preview_only?.enabled !== false;
+    el.previewBadge.textContent = enabled ? "Preview-only: ON" : "Preview-only: OFF";
+    el.previewBadge.className = `badge ${enabled ? "badge--ok" : "badge--err"}`;
+  }
+
+  /* ---------- overview ---------- */
+
+  async function loadOverview() {
+    el.overviewNotice.innerHTML = "";
+    el.overviewStats.innerHTML = emptyState("Loading status…");
     try {
-      const payload = await api.oauthAuthorizeUrl(providerSlug);
-      if (!payload.authorization_url) {
-        throw new Error("Authorization URL was not returned.");
-      }
-      window.location.assign(payload.authorization_url);
+      const [capabilities, connections] = await Promise.all([
+        api("/api/beta/capabilities"),
+        api("/api/hosted/connections"),
+      ]);
+      state.capabilities = capabilities;
+      state.connections = connections;
+      applyPreviewBadge(capabilities);
+      renderOverview(capabilities, connections);
     } catch (error) {
-      button.disabled = false;
-      button.classList.remove("is-loading");
-      button.textContent = provider ? "Connect" : button.textContent;
-      state.connectionNotice = { tone: "error", text: humanizeError(error) };
-      loadConnections(true);
-      toast(humanizeError(error), "error");
+      if (handle401(error)) return;
+      el.overviewStats.innerHTML = errorState(humanizeError(error));
     }
   }
 
-  async function loadPendingSelection(provider, pendingId, button) {
-    const providerSlug = oauthSlug(provider);
-    if (!providerSlug || !pendingId) return;
-    if (button) {
-      button.disabled = true;
-      button.classList.add("is-loading");
-    }
-    try {
-      state.activePendingSelection = await api.oauthPending(providerSlug, pendingId);
-      state.connectionNotice = { tone: "info", text: "Choose one or more accounts and save the connection." };
-      renderConnections(await api.hostedConnections());
-    } catch (error) {
-      state.connectionNotice = { tone: "error", text: humanizeError(error) };
-      renderConnections(await api.hostedConnections());
-    }
-  }
+  function renderOverview(capabilities, connections) {
+    const platforms = connections.platforms || [];
+    const connectedPlatforms = platforms.filter((p) => (p.accounts || []).length > 0);
+    const connectedAccounts = connectedPlatforms.reduce((sum, p) => sum + (p.accounts || []).length, 0);
+    const mcpUrl = capabilities?.mcp?.url || connections?.mcp?.url || "";
+    const previewOn = capabilities?.preview_only?.enabled !== false;
 
-  async function savePendingSelection(provider, form, button) {
-    const providerSlug = oauthSlug(provider);
-    if (!providerSlug || !state.activePendingSelection) return;
-    const accountIds = Array.from(form.querySelectorAll("input[name='account_id']:checked")).map((item) => item.value);
-    if (!accountIds.length) {
-      toast("Select at least one account.", "info");
-      return;
-    }
-    if (button) {
-      button.disabled = true;
-      button.classList.add("is-loading");
-    }
-    try {
-      await api.oauthSelect(providerSlug, {
-        pending_id: state.activePendingSelection.pending_id,
-        account_ids: accountIds,
-      });
-      state.activePendingSelection = null;
-      state.connectionNotice = { tone: "success", text: "Accounts connected. MCP tools can now use this provider." };
-      clearOAuthQueryParams();
-      await loadConnections(true);
-      toast("Connection saved.", "success");
-    } catch (error) {
-      if (button) {
-        button.disabled = false;
-        button.classList.remove("is-loading");
-      }
-      state.connectionNotice = { tone: "error", text: humanizeError(error) };
-      renderConnections(await api.hostedConnections());
-    }
-  }
+    el.mcpUrl.textContent = mcpUrl || "—";
+    el.copyMcpUrl.disabled = !mcpUrl;
 
-  async function disconnectProvider(provider, button) {
-    if (!window.confirm("Disconnect this provider and remove saved OAuth tokens from the hosted connection store?")) {
-      return;
-    }
-    button.disabled = true;
-    button.classList.add("is-loading");
-    try {
-      await api.disconnectProvider(provider);
-      if (state.activePendingSelection?.provider === provider) {
-        state.activePendingSelection = null;
-      }
-      state.connectionNotice = { tone: "success", text: "Provider disconnected." };
-      await loadConnections(true);
-    } catch (error) {
-      button.disabled = false;
-      button.classList.remove("is-loading");
-      state.connectionNotice = { tone: "error", text: humanizeError(error) };
-      renderConnections(await api.hostedConnections());
-    }
-  }
+    const stats = [
+      stat("Service", badge("Hosted beta · live", "ok")),
+      stat("Live URL", monoText(window.location.origin)),
+      stat("Preview-only", badge(previewOn ? "ON" : "OFF", previewOn ? "ok" : "err")),
+      stat("Connected platforms", String(connectedPlatforms.length)),
+      stat("Connected accounts", String(connectedAccounts)),
+      stat("MCP tools", String((capabilities?.mcp?.tools || []).length || "—")),
+    ];
+    el.overviewStats.innerHTML = stats.join("");
 
-  function renderOverview(workspace) {
-    const summary = workspace.summary || {};
-    const metrics = summary.metrics || [];
-    const currency = workspace.header?.currency;
+    el.overviewNotice.innerHTML = state.notice ? noticeMarkup(state.notice.text, state.notice.tone) : "";
 
-    el.overviewHeadline.textContent = summary.headline || "Сводка пока не собрана.";
-    renderOperatorSummary(summary.operator_summary || [], workspace.persistence || {});
-
-    el.overviewMetrics.innerHTML = metrics.length
-      ? metrics
-          .map(
-            (metric) => `
-              <article class="metric-card">
-                <span class="metric-card__label">${esc(metric.label)}</span>
-                <strong class="metric-card__value">${formatValue(metric.value, metric.format, currency)}</strong>
-                <span class="metric-card__hint">${esc(metric.id)}</span>
-              </article>
-            `,
-          )
-          .join("")
-      : renderEmptyMarkup("KPI по этому кабинету пока не собраны.");
-
-    const account = workspace.sections?.overview?.account?.data || {};
-    const totals = workspace.sections?.overview?.totals || {};
-    el.overviewAccount.innerHTML = renderKvGrid([
-      ["Название", account.name || workspace.header?.account_name || "—"],
-      ["ID аккаунта", workspace.account_id || "—"],
-      ["Валюта", workspace.header?.currency || account.currency || "—"],
-      ["Часовой пояс", workspace.header?.timezone || account.timezone_name || "—"],
-      ["Campaigns", totals.campaigns ?? "—"],
-      ["Ad sets", totals.adsets ?? "—"],
-      ["Ads", totals.ads ?? "—"],
-    ]);
-
-    const statusRows = summary.status_rows || [];
-    if (!statusRows.length) {
-      renderEmpty(el.overviewStatuses, "Статусы пока не получены.");
-      return;
-    }
-    const byGroup = statusRows.reduce((acc, row) => {
-      const group = row.group || "other";
-      acc[group] = acc[group] || [];
-      acc[group].push(row);
-      return acc;
-    }, {});
-
-    el.overviewStatuses.innerHTML = Object.entries(byGroup)
-      .map(
-        ([group, rows]) => `
-          <div class="status-list">
-            <h5>${esc(group)}</h5>
-            <div class="status-chips">
-              ${rows
-                .map(
-                  (row) =>
-                    `<span class="status-chip ${statusClass(row.status)}">${esc(row.status)} · ${formatNumber(row.count)}</span>`,
-                )
-                .join("")}
-            </div>
-          </div>
-        `,
-      )
+    const steps = [
+      { text: "Connect Meta Ads or Google Ads", done: connectedPlatforms.length > 0 || hasPending(platforms) },
+      { text: "Select ad accounts", done: connectedAccounts > 0 },
+      { text: "Run diagnostics", done: state.diagnosticsRun },
+      { text: "Copy the MCP URL", done: false },
+      { text: "Add it to Codex / Claude as a custom MCP server", done: false },
+      { text: "Ask the AI for accounts, campaigns and metrics", done: false },
+    ];
+    el.nextSteps.innerHTML = steps
+      .map((s) => `<li class="${s.done ? "is-done" : ""}">${esc(s.text)}</li>`)
       .join("");
   }
 
-  function renderConnections(payload) {
-    const platforms = payload.platforms || [];
-    const mcp = payload.mcp || {};
-    const store = payload.connection_store || {};
-    const activePending = state.activePendingSelection;
-    const platformMarkup = platforms.length
-      ? platforms.map((platform) => renderConnectionPlatform(platform)).join("")
-      : renderEmptyMarkup("No platforms were returned.");
-    el.connectionsContent.innerHTML = `
-      <div class="connections-layout">
-        ${renderConnectionNotice()}
-        <article class="panel-card connection-summary">
-          <div>
-            <p class="section-kicker">Hosted MCP</p>
-            <h4>${esc(mcp.name || "AdForge MCP")}</h4>
-            <p>Connect ad accounts here, then use the hosted MCP URL in Codex, Claude, or another MCP client.</p>
-          </div>
-          <div class="kv-grid">
-            ${renderKv("Transport", mcp.transport || "streamable_http")}
-            ${renderKv("URL", mcp.url || "")}
-            ${renderKv("Store", store.configured ? "configured" : "not created yet")}
-          </div>
-          <div class="connection-summary__actions">
-            <button type="button" class="btn btn--secondary" data-copy-mcp-url="${escAttr(mcp.url || "")}" ${mcp.url ? "" : "disabled"}>Copy MCP URL</button>
-          </div>
-        </article>
-        ${activePending ? renderPendingSelection(activePending) : ""}
-        <div class="connection-platforms">${platformMarkup}</div>
-      </div>
-    `;
-    el.connectionsContent.querySelectorAll("[data-oauth-provider]").forEach((button) => {
-      button.addEventListener("click", () => startOAuth(button.dataset.oauthProvider, button));
-    });
-    el.connectionsContent.querySelectorAll("[data-pending-provider]").forEach((button) => {
-      button.addEventListener("click", () => loadPendingSelection(button.dataset.pendingProvider, button.dataset.pendingId, button));
-    });
-    el.connectionsContent.querySelectorAll("[data-disconnect-provider]").forEach((button) => {
-      button.addEventListener("click", () => disconnectProvider(button.dataset.disconnectProvider, button));
-    });
-    el.connectionsContent.querySelectorAll("[data-diagnostics-provider]").forEach((button) => {
-      button.addEventListener("click", () => runPlatformDiagnostics(button.dataset.diagnosticsProvider, button));
-    });
-    el.connectionsContent.querySelectorAll("[data-copy-mcp-url]").forEach((button) => {
-      button.addEventListener("click", async () => {
-        await copyText(button.dataset.copyMcpUrl || "");
-        toast("MCP URL copied.", "success");
-      });
-    });
-    el.connectionsContent.querySelectorAll("[data-pending-form]").forEach((form) => {
-      form.addEventListener("submit", (event) => {
-        event.preventDefault();
-        savePendingSelection(form.dataset.pendingForm, form, event.submitter);
-      });
-    });
+  function hasPending(platforms) {
+    return platforms.some((p) => (p.pending_selections || []).some((x) => x.status === "pending_account_selection"));
   }
 
-  function renderConnectionPlatform(platform) {
-    const accounts = platform.accounts || [];
-    const pending = platform.pending_selections || [];
-    const activePending = pending.find((item) => item.status === "pending_account_selection");
-    const expiredPending = pending.find((item) => item.status === "expired");
-    const oauthAvailable = Boolean(platform.oauth_target && oauthSlug(platform.provider));
-    const canStartOAuth = oauthAvailable && platform.oauth_configured;
-    const connectDisabled = !canStartOAuth ? "disabled" : "";
-    const buttonText = platform.status === "connected" ? "Reconnect" : "Connect";
-    const status = connectionDisplayStatus(platform);
-    return `
-      <article class="panel-card connection-platform">
-        <header class="connection-platform__header">
-          <div>
-            <h4>${esc(platform.label || platform.provider)}</h4>
-            <p>${esc(connectionSubtitle(platform))}</p>
-          </div>
-          <span class="status-chip ${statusClass(status)}">${esc(connectionStatusLabel(status))}</span>
-        </header>
-        <p class="connection-platform__hint">${esc(connectionHint(platform, status))}</p>
-        <div class="connection-platform__accounts">
-          ${
-            accounts.length
-              ? accounts.map((account) => renderConnectionAccount(account)).join("")
-              : renderEmptyMarkup("No connected accounts yet.")
-          }
-        </div>
-        ${activePending ? renderPendingCallout(platform, activePending) : ""}
-        ${expiredPending && !activePending ? renderExpiredCallout(expiredPending) : ""}
-        ${renderPlatformDiagnosticSummary(platform)}
-        <footer class="connection-platform__actions">
-          <button type="button" class="btn btn--primary connection-platform__button" data-oauth-provider="${escAttr(platform.provider)}" ${connectDisabled}>${buttonText}</button>
-          <button type="button" class="btn btn--secondary" data-diagnostics-provider="${escAttr(platform.provider)}">Run diagnostics</button>
-          ${
-            accounts.length
-              ? `<button type="button" class="btn btn--secondary" data-disconnect-provider="${escAttr(platform.provider)}">Disconnect</button>`
-              : ""
-          }
-        </footer>
-      </article>
-    `;
-  }
+  /* ---------- connections ---------- */
 
-  async function runPlatformDiagnostics(provider, button) {
-    if (!provider) return;
-    button.disabled = true;
-    button.classList.add("is-loading");
-    button.textContent = "Checking…";
+  async function loadConnections() {
+    el.connectionsNotice.innerHTML = state.notice ? noticeMarkup(state.notice.text, state.notice.tone) : "";
+    if (!state.connections) el.connectionsList.innerHTML = emptyState("Loading connections…");
     try {
-      const result = await api.diagnosticsPlatform(provider, true);
-      state.connectionNotice = {
-        tone: result.status === "mcp_ready" ? "success" : "info",
-        text: `${providerLabel(provider)} diagnostics: ${connectionStatusLabel(result.status)}.`,
-      };
-      const payload = await api.hostedConnections();
-      const platform = (payload.platforms || []).find((item) => item.provider === provider);
-      if (platform) {
-        platform.diagnostic_summary = {
-          status: result.status,
-          account_count: result.account_count,
-          last_successful_update: result.last_successful_update,
-          last_error: result.last_error,
-          missing_required_env: result.missing_required_env || [],
-        };
-      }
-      renderConnections(payload);
+      const connections = await api("/api/hosted/connections");
+      state.connections = connections;
+      renderConnections(connections);
     } catch (error) {
-      state.connectionNotice = { tone: "error", text: humanizeError(error) };
-      renderConnections(await api.hostedConnections());
+      if (handle401(error)) return;
+      el.connectionsList.innerHTML = errorState(humanizeError(error));
     }
   }
 
-  function renderPlatformDiagnosticSummary(platform) {
+  function renderConnections(connections) {
+    el.connectionsNotice.innerHTML = state.notice ? noticeMarkup(state.notice.text, state.notice.tone) : "";
+    el.pendingPanel.innerHTML = state.activePending ? renderPendingPanel(state.activePending) : "";
+    const platforms = (connections && connections.platforms) || [];
+    el.connectionsList.innerHTML = platforms.length
+      ? platforms.map(renderPlatformCard).join("")
+      : emptyState("No ad accounts connected yet. Connect Meta Ads or Google Ads to start.");
+    bindConnectionActions();
+  }
+
+  function renderPlatformCard(platform) {
+    const status = resolveStatus(platform);
+    const accounts = platform.accounts || [];
     const summary = platform.diagnostic_summary || {};
-    const missing = summary.missing_required_env || [];
-    const lastError = summary.last_error || {};
-    const status = summary.status || connectionDisplayStatus(platform);
-    return `
-      <div class="connection-diagnostics">
-        <div class="connection-diagnostics__head">
-          <span>Diagnostics</span>
-          <strong class="${statusClass(status)}">${esc(connectionStatusLabel(status))}</strong>
-        </div>
-        <div class="kv-grid">
-          ${renderKv("Accounts", summary.account_count ?? (platform.accounts || []).length)}
-          ${renderKv("Last success", summary.last_successful_update || "not checked")}
-          ${renderKv("Missing env", missing.length ? missing.join(", ") : "none")}
-          ${renderKv("Last error", lastError.message || "none")}
-        </div>
-      </div>
-    `;
-  }
+    const lastError = summary.last_error;
+    const limited = LIMITED_BETA.has(platform.provider);
+    const canConnect = Boolean(platform.oauth_configured);
+    const connectLabel = status === "connected" ? "Reconnect" : "Connect";
 
-  function renderConnectionNotice() {
-    if (!state.connectionNotice?.text) return "";
-    return `<div class="notice-state notice-state--${escAttr(state.connectionNotice.tone || "info")}">${esc(state.connectionNotice.text)}</div>`;
-  }
+    const metaBits = [
+      `<span>Credentials <strong>${canConnect ? "ready" : "missing"}</strong></span>`,
+      `<span>Accounts <strong>${accounts.length}</strong></span>`,
+    ];
+    if (summary.last_successful_update) {
+      metaBits.push(`<span>Last success <strong>${esc(formatTime(summary.last_successful_update))}</strong></span>`);
+    }
 
-  function renderPendingSelection(pending) {
-    const accounts = pending.accounts || [];
+    const accountsBlock = accounts.length
+      ? `<div class="platform-card__accounts">${accounts.map(renderAccountRow).join("")}</div>`
+      : "";
+
+    const pending = (platform.pending_selections || []).find((x) => x.status === "pending_account_selection");
+    const expired = (platform.pending_selections || []).find((x) => x.status === "expired");
+
     return `
-      <article class="panel-card pending-selection">
-        <header class="pending-selection__header">
+      <article class="card platform-card">
+        <div class="platform-card__head">
           <div>
-            <p class="section-kicker">Account selection</p>
-            <h4>${esc(providerLabel(pending.provider))}</h4>
+            <h3 class="platform-card__name">${esc(platform.label || platform.provider)}</h3>
+            <p class="platform-card__desc">${esc(PROVIDER_DESC[platform.provider] || "")}</p>
           </div>
-          <span class="status-chip ${statusClass(pending.status)}">${esc(connectionStatusLabel(pending.status))}</span>
-        </header>
-        <p class="connection-platform__hint">Choose the ad accounts that should be available to MCP tools. Secrets stay in the hosted connection store and are not shown here.</p>
-        <form class="pending-account-form" data-pending-form="${escAttr(pending.provider)}">
-          <div class="pending-account-list">
-            ${
-              accounts.length
-                ? accounts.map((account) => renderPendingAccountOption(account)).join("")
-                : renderEmptyMarkup("No accounts were returned by OAuth.")
-            }
-          </div>
-          <footer class="connection-platform__actions">
-            <button type="submit" class="btn btn--primary" ${accounts.length ? "" : "disabled"}>Save selected accounts</button>
-            <button type="button" class="btn btn--secondary" data-oauth-provider="${escAttr(pending.provider)}">Reconnect</button>
-          </footer>
-        </form>
+          ${statusBadge(status, limited)}
+        </div>
+        <div class="platform-card__meta">${metaBits.join("")}</div>
+        <p class="platform-card__hint">${esc(statusHint(status, canConnect))}</p>
+        ${accountsBlock}
+        ${pending ? renderPendingCallout(platform, pending) : ""}
+        ${expired && !pending ? renderExpiredCallout() : ""}
+        ${lastError ? `<div class="callout callout--warn"><strong>Last error</strong><span>${esc(lastError.message || String(lastError))}</span></div>` : ""}
+        <div class="platform-card__actions">
+          <button type="button" class="btn btn--primary btn--small" data-oauth="${escAttr(platform.provider)}" ${canConnect ? "" : "disabled"}>${connectLabel}</button>
+          <button type="button" class="btn btn--secondary btn--small" data-diag="${escAttr(platform.provider)}">Run diagnostics</button>
+          ${accounts.length ? `<button type="button" class="btn btn--danger btn--small" data-disconnect="${escAttr(platform.provider)}">Disconnect</button>` : ""}
+        </div>
       </article>
     `;
   }
 
-  function renderPendingAccountOption(account) {
-    const accountId = account.account_id || account.customer_id || account.advertiser_id || account.direct_client_login || "";
+  function renderAccountRow(account) {
+    const id = account.account_id || account.customer_id || account.advertiser_id || account.direct_client_login || "";
     return `
-      <label class="pending-account-option">
-        <input type="checkbox" name="account_id" value="${escAttr(accountId)}" checked>
-        <span>
-          <strong>${esc(account.name || accountId || "Account")}</strong>
-          <small>${esc(accountId)}</small>
-        </span>
-      </label>
-    `;
-  }
-
-  function renderConnectionAccount(account) {
-    const accountId = account.account_id || account.customer_id || account.advertiser_id || account.direct_client_login || "";
-    return `
-      <div class="connection-account">
-        ${esc(account.name || accountId || "Account")}
-        <span>${esc(accountId)}</span>
+      <div class="account-row">
+        <span>${esc(account.name || id || "Account")}</span>
+        <span class="mono">${esc(id)}</span>
       </div>
     `;
   }
 
   function renderPendingCallout(platform, pending) {
+    const count = (pending.accounts || []).length;
     return `
-      <div class="connection-callout">
+      <div class="callout">
         <strong>Account selection required</strong>
-        <span>${esc((pending.accounts || []).length)} account(s) discovered. Save the accounts to finish setup.</span>
-        <button type="button" class="btn btn--secondary" data-pending-provider="${escAttr(platform.provider)}" data-pending-id="${escAttr(pending.pending_id)}">Select accounts</button>
+        <span>${count} account(s) discovered by OAuth. Select which ones AdForge MCP can use.</span>
+        <button type="button" class="btn btn--secondary btn--small" data-pending="${escAttr(platform.provider)}" data-pending-id="${escAttr(pending.pending_id)}">Select accounts</button>
       </div>
     `;
   }
 
-  function renderExpiredCallout(pending) {
+  function renderExpiredCallout() {
     return `
-      <div class="connection-callout connection-callout--warning">
+      <div class="callout callout--warn">
         <strong>OAuth session expired</strong>
-        <span>This pending selection expired. Reconnect the platform to continue.</span>
+        <span>The selection window expired. Reconnect this platform to continue.</span>
       </div>
     `;
   }
 
-  function renderOperatorSummary(rows, persistence) {
-    const items = [...rows];
-    if (persistence && Object.keys(persistence).length) {
-      items.push({
-        label: "Синк в ClickHouse",
-        value: describePersistenceShort(persistence),
-      });
-    }
-    if (!items.length) {
-      renderEmpty(el.overviewOperatorSummary, "Операторская сводка пока недоступна.");
-      return;
-    }
-    el.overviewOperatorSummary.innerHTML = `
-      <div class="list-box">
-        ${renderInlineNoticeMarkup((state.workspace?.warnings || [])[0], "warning")}
-        ${items
-          .map(
-            (row) => `
-              <div class="list-row">
-                <div class="list-row__head">
-                  <span class="list-row__title">${esc(row.label || "Показатель")}</span>
-                </div>
-                <div class="list-row__text">${esc(stringify(row.value))}</div>
-              </div>
-            `,
-          )
-          .join("")}
-      </div>
+  function renderPendingPanel(pending) {
+    const accounts = pending.accounts || [];
+    const options = accounts.length
+      ? accounts.map(renderPendingOption).join("")
+      : emptyState("No accounts were returned by the provider.");
+    return `
+      <article class="card pending-card">
+        <h3 class="card__title">Select accounts · ${esc(providerLabel(pending.provider))}</h3>
+        <p class="card__hint">Choose the ad accounts AdForge MCP can use. Secrets stay in the hosted store and are never shown here.</p>
+        <form id="pending-form" data-provider="${escAttr(pending.provider)}">
+          <div class="pending-list">${options}</div>
+          <div class="pending-actions">
+            <button type="submit" class="btn btn--primary btn--small" ${accounts.length ? "" : "disabled"}>Save selected accounts</button>
+            <button type="button" class="btn btn--ghost btn--small" data-cancel-pending>Cancel</button>
+          </div>
+        </form>
+      </article>
     `;
   }
 
-  function renderStructure(payload) {
-    const rows = payload.rows || [];
-    if (!rows.length) {
-      el.structureContent.innerHTML = `${renderInlineNoticeMarkup(payload.warning, "warning")}${renderEmptyMarkup("Структура кампаний пока не получена.")}`;
-      return;
-    }
-    el.structureContent.innerHTML = `
-      ${renderInlineNoticeMarkup(payload.warning, "warning")}
-      <div class="structure-list">
-        ${rows
-          .map(
-            (campaign) => `
-              <details class="structure-item">
-                <summary>
-                  <span class="structure-item__name">${esc(campaign.campaign_name || campaign.campaign_id || "Campaign")}</span>
-                  <span class="status-chip ${statusClass(campaign.campaign_status)}">${esc(campaign.campaign_status || "UNKNOWN")}</span>
-                </summary>
-                <div class="structure-item__body">
-                  ${
-                    (campaign.adsets || [])
-                      .map(
-                        (adset) => `
-                          <div class="list-row">
-                            <div class="list-row__head">
-                              <span class="list-row__title">${esc(adset.adset_name || adset.adset_id || "Ad set")}</span>
-                              <span class="status-chip ${statusClass(adset.adset_status)}">${esc(adset.adset_status || "UNKNOWN")}</span>
-                            </div>
-                            <ul class="structure-sublist">
-                              ${(adset.ads || [])
-                                .map((ad) => `<li>${esc(ad.ad_name || ad.ad_id || "Ad")} · ${esc(ad.ad_status || "UNKNOWN")}</li>`)
-                                .join("")}
-                            </ul>
-                          </div>
-                        `,
-                      )
-                      .join("") || renderEmptyMarkup("Для кампании пока нет ad sets.")
-                  }
-                </div>
-              </details>
-            `,
-          )
-          .join("")}
-      </div>
+  function renderPendingOption(account) {
+    const id = account.account_id || account.customer_id || account.advertiser_id || account.direct_client_login || "";
+    return `
+      <label class="pending-option">
+        <input type="checkbox" name="account_id" value="${escAttr(id)}" checked>
+        <span>
+          <span class="pending-option__name">${esc(account.name || id || "Account")}</span>
+          <span class="pending-option__id">${esc(id)}</span>
+        </span>
+      </label>
     `;
   }
 
-  function renderIssues(payload) {
-    const issues = payload.issues || [];
-    if (!issues.length) {
-      el.issuesContent.innerHTML = `${renderInlineNoticeMarkup(payload.warning, "warning")}${renderEmptyMarkup("Проблем доставки не найдено.")}`;
-      return;
-    }
-    el.issuesContent.innerHTML = `
-      ${renderInlineNoticeMarkup(payload.warning, "warning")}
-      <div class="list-box">
-        ${issues
-          .map(
-            (issue) => `
-              <article class="list-row">
-                <div class="list-row__head">
-                  <span class="list-row__title">${esc(issue.name || issue.id || "Сущность")}</span>
-                  <span class="status-chip ${statusClass(issue.status)}">${esc(issue.status || "UNKNOWN")}</span>
-                </div>
-                <div class="list-row__meta">${esc(issue.object_type || "entity")} · ${esc(issue.id || "—")}</div>
-                <div class="list-row__text">${esc(issue.review_feedback || stringify(issue.issues_info) || "Нужна ручная проверка.")}</div>
-              </article>
-            `,
-          )
-          .join("")}
-      </div>
-    `;
-  }
-
-  function renderAssets(payload) {
-    const assets = payload.assets || payload || {};
-    const groups = [
-      ["Страницы", assets.pages || []],
-      ["Instagram", assets.instagram_accounts || []],
-      ["Пиксели", assets.pixels || []],
-      ["Custom conversions", assets.custom_conversions || []],
-    ];
-
-    el.assetsContent.innerHTML = `
-      ${renderInlineNoticeMarkup(payload.warning, "warning")}
-      ${groups
-        .map(
-          ([title, rows]) => `
-            <article class="panel-card">
-              <h4>${esc(title)}</h4>
-              ${
-                rows.length
-                  ? `<div class="list-box">
-                      ${rows
-                        .map(
-                          (row) => `
-                            <div class="list-row">
-                              <div class="list-row__head">
-                                <span class="list-row__title">${esc(row.name || row.id || "Asset")}</span>
-                              </div>
-                              <div class="list-row__meta mono-text">${esc(row.id || "—")}</div>
-                            </div>
-                          `,
-                        )
-                        .join("")}
-                    </div>`
-                  : renderEmptyMarkup("Нет подключённых объектов в этой группе.")
-              }
-            </article>
-          `,
-        )
-        .join("")}
-    `;
-  }
-
-  function renderPerformers(payload) {
-    const rows = payload.rows || [];
-    if (!rows.length) {
-      el.performersContent.innerHTML = `${renderInlineNoticeMarkup(payload.warning, "warning")}${renderEmptyMarkup("Подходящие top performers пока не найдены.")}`;
-      return;
-    }
-    el.performersContent.innerHTML = `
-      ${renderInlineNoticeMarkup(payload.warning, "warning")}
-      ${renderTable(rows, [
-        ["entity_name", "Сущность"],
-        ["spend", "Расход", "currency"],
-        ["conversions", "Конверсии", "number"],
-        ["cost_per_result", "Цена результата", "currency"],
-        ["ctr", "CTR", "percent"],
-        ["cpc", "CPC", "currency"],
-      ])}
-    `;
-  }
-
-  function renderNoResult(payload) {
-    const rows = payload.rows || [];
-    if (!rows.length) {
-      el.wasteContent.innerHTML = `${renderInlineNoticeMarkup(payload.warning, "warning")}${renderEmptyMarkup("Сущностей с расходом без результата не найдено.")}`;
-      return;
-    }
-    el.wasteContent.innerHTML = `
-      ${renderInlineNoticeMarkup(payload.warning, "warning")}
-      ${renderTable(rows, [
-        ["entity_name", "Сущность"],
-        ["spend", "Расход", "currency"],
-        ["conversions", "Конверсии", "number"],
-        ["ctr", "CTR", "percent"],
-        ["objective", "Objective"],
-      ])}
-    `;
-  }
-
-  function renderDiagnosticsFromWorkspace(workspace) {
-    const diagnostics = workspace.sections?.diagnostics || {};
-    renderDiagnostics(
-      diagnostics.health || {},
-      diagnostics.config || {},
-      diagnostics.auth || {},
-      diagnostics.persistence || workspace.persistence || {},
-      workspace.data_contract || {},
+  function bindConnectionActions() {
+    el.connectionsList.querySelectorAll("[data-oauth]").forEach((btn) =>
+      btn.addEventListener("click", () => startOAuth(btn.dataset.oauth, btn)),
     );
-  }
-
-  function renderDiagnostics(health, config, auth, persistence, contractPayload) {
-    const contract = contractPayload.clickhouse || contractPayload;
-
-    el.diagnosticsHealth.innerHTML = `
-      ${renderInlineNoticeMarkup(health.warning || auth.warning, "info")}
-      <article class="diag-health-card">
-        <h4>Health</h4>
-        <div class="diag-stack">
-          <div class="kv-row"><span>Статус</span><strong>${esc(health.status || "unknown")}</strong></div>
-          <div class="kv-row"><span>Accounts checked</span><strong>${formatNumber(health.auth?.accounts_checked || 0)}</strong></div>
-          <div class="kv-row"><span>Auth OK</span><strong>${formatNumber(health.auth?.auth_ok_count || 0)}</strong></div>
-          <div class="kv-row"><span>Auth failed</span><strong>${formatNumber(health.auth?.auth_failed_count || 0)}</strong></div>
-        </div>
-      </article>
-      <article class="diag-health-card">
-        <h4>Runtime</h4>
-        <div class="diag-stack">
-          <div class="kv-row"><span>.env найден</span><strong>${boolText(config.env?.exists)}</strong></div>
-          <div class="kv-row"><span>Accounts loaded</span><strong>${formatNumber(config.runtime?.accounts_total || 0)}</strong></div>
-          <div class="kv-row"><span>Env substitution OK</span><strong>${boolText(config.env_substitution?.all_resolved)}</strong></div>
-          <div class="kv-row"><span>ClickHouse host</span><strong>${esc(contract.database?.host || "не задан")}</strong></div>
-        </div>
-      </article>
-    `;
-
-    const accounts = config.runtime?.accounts || [];
-    el.diagnosticsConfig.innerHTML = `
-      <article class="panel-card">
-        <h4>Runtime-конфигурация</h4>
-        ${
-          accounts.length
-            ? renderTable(accounts, [
-                ["name", "Аккаунт"],
-                ["account_id", "Account ID"],
-                ["app_id", "App ID"],
-                ["access_token.masked", "Token"],
-                ["app_secret.masked", "App secret"],
-              ])
-            : renderEmptyMarkup("Runtime-конфигурация пока не загрузила аккаунты.")
-        }
-      </article>
-    `;
-
-    const checks = auth.checks || [];
-    el.diagnosticsAuth.innerHTML = `
-      <article class="panel-card">
-        <h4>Проверка авторизации</h4>
-        ${renderInlineNoticeMarkup(auth.warning, "info")}
-        ${
-          checks.length
-            ? renderTable(checks, [
-                ["name", "Аккаунт"],
-                ["account_id", "Account ID"],
-                ["auth_ok", "Auth OK", "boolean"],
-                ["account_name_from_meta", "Имя из Meta"],
-                ["meta_account_status", "Статус Meta"],
-                ["error", "Ошибка"],
-              ])
-            : renderEmptyMarkup("Проверки авторизации пока не выполнялись.")
-        }
-      </article>
-    `;
-
-    el.diagnosticsPersistence.innerHTML = `
-      <article class="panel-card">
-        <h4>ClickHouse persistence</h4>
-        ${renderPersistence(persistence)}
-      </article>
-    `;
-
-    el.diagnosticsContract.innerHTML = `
-      <article class="panel-card">
-        <h4>Data contract / ClickHouse</h4>
-        ${renderDataContract(contract)}
-      </article>
-    `;
-
-    el.diagnosticsTroubleshooting.innerHTML = renderTroubleshooting(config, auth, persistence);
-  }
-
-  function renderPersistence(persistence) {
-    const tables = persistence.tables || {};
-    const existingTables = persistence.existing_tables || [];
-    const statusRows = [
-      ["Включён", boolText(persistence.enabled)],
-      ["Настроен", boolText(persistence.configured)],
-      ["Доступен", boolText(persistence.reachable)],
-      ["Схема готова", boolText(persistence.schema_ready)],
-      ["Host", persistence.host || "—"],
-      ["База", persistence.database || "—"],
-      ["User", persistence.user || "—"],
-    ];
-
-    return `
-      <div class="result-stack">
-        ${renderKvGrid(statusRows)}
-        ${
-          Object.keys(tables).length
-            ? `<div class="list-box">
-                ${Object.entries(tables)
-                  .map(
-                    ([tableName, inserted]) => `
-                      <div class="list-row">
-                        <div class="list-row__head">
-                          <span class="list-row__title">${esc(tableName)}</span>
-                        </div>
-                        <div class="list-row__text">Синхронизировано строк: ${esc(stringify(inserted))}</div>
-                      </div>
-                    `,
-                  )
-                  .join("")}
-              </div>`
-            : ""
-        }
-        ${
-          existingTables.length
-            ? `<div class="result-summary"><strong>Существующие таблицы:</strong> ${esc(existingTables.join(", "))}</div>`
-            : ""
-        }
-        ${
-          persistence.last_error || persistence.reason
-            ? `<div class="error-state">${esc(persistence.last_error || persistence.reason)}</div>`
-            : ""
-        }
-      </div>
-    `;
-  }
-
-  function renderDataContract(contract) {
-    const database = contract.database || {};
-    const tables = contract.tables || [];
-    const uiOutputs = contract.ui_outputs || [];
-
-    return `
-      <div class="result-stack">
-        <div class="result-summary">
-          <strong>База:</strong> ${esc(database.engine || "ClickHouse")} · ${esc(database.host || "—")}:${esc(database.port || "—")} · ${esc(database.database || "—")}
-        </div>
-        <div class="result-summary">
-          <strong>Режим:</strong> ${esc(database.mode || "runtime_contract")} · <strong>Secure:</strong> ${esc(boolText(database.secure))}
-        </div>
-        <div class="list-box">
-          ${tables
-            .map(
-              (table) => `
-                <article class="list-row">
-                  <div class="list-row__head">
-                    <span class="list-row__title">${esc(table.name)}</span>
-                    <span class="list-row__meta mono-text">${esc((table.order_by || []).join(", "))}</span>
-                  </div>
-                  <div class="list-row__text">${esc(table.purpose || "")}</div>
-                  <div class="mono-text">${esc((table.columns || []).map((column) => `${column.name}:${column.type}`).join(" · "))}</div>
-                </article>
-              `,
-            )
-            .join("")}
-        </div>
-        <article class="panel-card">
-          <h4>Связь UI → данные</h4>
-          ${renderTable(uiOutputs, [
-            ["section", "Раздел"],
-            ["source_tables", "Таблицы", "array"],
-            ["keys", "Ключи", "array"],
-          ])}
-        </article>
-      </div>
-    `;
-  }
-
-  function renderTroubleshooting(config, auth, persistence) {
-    const missingVars = config.env_substitution?.missing_vars || [];
-    const failedChecks = (auth.checks || []).filter((item) => !item.auth_ok);
-    const tips = [];
-
-    if (!config.env?.exists) {
-      tips.push("Файл .env не найден в корне проекта.");
-    }
-    if (missingVars.length) {
-      tips.push(`Не подставились env-переменные: ${missingVars.join(", ")}.`);
-    }
-    if (failedChecks.length) {
-      tips.push("Есть кабинеты с невалидной Meta-авторизацией. Проверьте токены и права system user.");
-    }
-    if (persistence.enabled && !persistence.configured) {
-      tips.push("ClickHouse включён, но параметры подключения не заполнены.");
-    }
-    if (persistence.enabled && persistence.configured && !persistence.reachable) {
-      tips.push("ClickHouse не отвечает. Проверьте host, порт, пароль и сетевой доступ.");
-    }
-    if (!tips.length) {
-      tips.push("Базовая конфигурация выглядит корректно. Можно переходить к проверке summaries и skill-сценариев.");
-    }
-    return `<div class="list-box">${tips.map((tip) => `<div class="list-row__text">${esc(tip)}</div>`).join("")}</div>`;
-  }
-
-  function renderSkillCatalog(skills) {
-    if (!skills.length) {
-      renderEmpty(el.skillsCatalog, "Навыки пока не зарегистрированы.");
-      return;
-    }
-    if (!skills.find((item) => item.id === state.selectedSkillId)) {
-      state.selectedSkillId = skills[0].id;
-    }
-    state.selectedSkill = skills.find((item) => item.id === state.selectedSkillId) || skills[0];
-    el.skillsCatalog.innerHTML = skills
-      .map(
-        (skill) => `
-          <button type="button" class="skill-card ${skill.id === state.selectedSkillId ? "is-selected" : ""}" data-skill-id="${esc(skill.id)}">
-            <span class="skill-card__title">${esc(skill.title)}</span>
-            <span class="skill-card__description">${esc(skill.description || "")}</span>
-            <span class="skill-card__meta mono-text">${esc(skill.mcp_tool || "")}</span>
-          </button>
-        `,
-      )
-      .join("");
-    el.skillsPromptBox.value = state.selectedSkill?.prompt || "";
-    el.skillsCatalog.querySelectorAll("[data-skill-id]").forEach((button) => {
-      button.addEventListener("click", () => {
-        state.selectedSkillId = button.getAttribute("data-skill-id") || "";
-        renderSkillCatalog(skills);
-        renderSelectedSkillFromWorkspace();
+    el.connectionsList.querySelectorAll("[data-diag]").forEach((btn) =>
+      btn.addEventListener("click", () => runPlatformDiagnostics(btn.dataset.diag, btn)),
+    );
+    el.connectionsList.querySelectorAll("[data-disconnect]").forEach((btn) =>
+      btn.addEventListener("click", () => disconnect(btn.dataset.disconnect, btn)),
+    );
+    el.connectionsList.querySelectorAll("[data-pending]").forEach((btn) =>
+      btn.addEventListener("click", () => loadPending(btn.dataset.pending, btn.dataset.pendingId)),
+    );
+    const form = el.pendingPanel.querySelector("#pending-form");
+    if (form) {
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        savePending(form.dataset.provider, form, event.submitter);
       });
-    });
-  }
-
-  function renderSelectedSkillFromWorkspace() {
-    if (!state.workspace?.skills) {
-      renderEmpty(el.skillsResult, "Workspace ещё не загрузился.");
-      return;
-    }
-    const skillResult = skillResultFromWorkspace(state.selectedSkillId, state.workspace.skills);
-    renderSkillResult(skillResult);
-  }
-
-  function skillResultFromWorkspace(skillId, skills) {
-    switch (skillId) {
-      case "budget_summary":
-        return skills.budget_summary || null;
-      case "disable_candidates":
-        return skills.disable_candidates || null;
-      case "scale_candidates":
-        return skills.scale_candidates || null;
-      case "collect_report":
-      default:
-        return skills.collect_report || null;
-    }
-  }
-
-  async function runSelectedSkill() {
-    if (!state.selectedSkill) {
-      toast("Навык не выбран.", "info");
-      return;
-    }
-
-    el.skillsRunSelected.classList.add("is-loading");
-    el.skillsRunSelected.disabled = true;
-    renderLoading(el.skillsResult, "Запускаем навык…");
-
-    try {
-      let payload;
-      if (state.selectedSkillId === "budget_summary") {
-        payload = await api.budgetSkill({ account_id: state.accountId, end_date: state.endDate });
-      } else if (state.selectedSkillId === "disable_candidates") {
-        payload = await api.disableSkill({
-          account_id: state.accountId,
-          end_date: state.endDate,
-          lookback_days: el.wasteLookback.value || "7",
-          entity_level: el.wasteLevel.value,
-          min_spend: el.wasteMinSpend.value || "20",
-          limit: "10",
-        });
-      } else if (state.selectedSkillId === "scale_candidates") {
-        payload = await api.scaleSkill({
-          account_id: state.accountId,
-          end_date: state.endDate,
-          lookback_days: el.performersLookback.value || "7",
-          entity_level: el.performersLevel.value,
-          max_cost_per_result: "20",
-          min_conversions: "1",
-          limit: "10",
-        });
-      } else {
-        payload = await api.reportSkill({
-          account_id: state.accountId,
-          end_date: state.endDate,
-          lookback_days: "7",
-          entity_level: el.performersLevel.value,
-          min_spend: el.wasteMinSpend.value || "20",
-          max_cost_per_result: "20",
+      const cancel = el.pendingPanel.querySelector("[data-cancel-pending]");
+      if (cancel) {
+        cancel.addEventListener("click", () => {
+          state.activePending = null;
+          renderConnections(state.connections);
         });
       }
-      renderSkillResult(payload);
-      toast("Навык выполнен.", "success");
-    } catch (error) {
-      renderError(el.skillsResult, error.message || "Не удалось выполнить навык.");
-      toast(error.message || "Не удалось выполнить навык.", "error");
-    } finally {
-      el.skillsRunSelected.classList.remove("is-loading");
-      el.skillsRunSelected.disabled = false;
     }
   }
 
-  function renderSkillResult(payload) {
-    if (!payload) {
-      renderEmpty(el.skillsResult, "Результат навыка пока не получен.");
+  async function startOAuth(provider, button) {
+    const slug = PROVIDER_SLUG[provider];
+    if (!slug) return;
+    setLoading(button, true);
+    try {
+      const payload = await api(`/api/hosted/oauth/${slug}/authorize-url`);
+      if (!payload.authorization_url) throw new Error("Authorization URL was not returned.");
+      window.location.assign(payload.authorization_url);
+    } catch (error) {
+      if (handle401(error)) return;
+      setLoading(button, false);
+      state.notice = { tone: "error", text: humanizeError(error) };
+      renderConnections(state.connections);
+      toast(humanizeError(error), "error");
+    }
+  }
+
+  async function loadPending(provider, pendingId) {
+    const slug = PROVIDER_SLUG[provider];
+    if (!slug || !pendingId) return;
+    try {
+      state.activePending = await api(`/api/hosted/oauth/${slug}/pending?pending_id=${encodeURIComponent(pendingId)}`);
+      state.notice = { tone: "info", text: "Choose one or more accounts and save the connection." };
+      if (!state.connections) state.connections = await api("/api/hosted/connections");
+      renderConnections(state.connections);
+    } catch (error) {
+      if (handle401(error)) return;
+      state.activePending = null;
+      state.notice = { tone: "error", text: humanizeError(error) };
+      renderConnections(state.connections);
+    }
+  }
+
+  async function savePending(provider, form, button) {
+    const slug = PROVIDER_SLUG[provider];
+    if (!slug || !state.activePending) return;
+    const accountIds = Array.from(form.querySelectorAll("input[name='account_id']:checked")).map((i) => i.value);
+    if (!accountIds.length) {
+      toast("Select at least one account.", "info");
       return;
     }
-
-    const sections = [];
-    if (payload.summary) {
-      sections.push(`<div class="result-summary"><strong>${esc(payload.title || "Навык")}</strong><p>${esc(payload.summary)}</p></div>`);
+    setLoading(button, true);
+    try {
+      await api(`/api/hosted/oauth/${slug}/select`, "POST", {
+        pending_id: state.activePending.pending_id,
+        account_ids: accountIds,
+      });
+      state.activePending = null;
+      state.notice = { tone: "success", text: "Accounts connected. MCP tools can now use this provider." };
+      await loadConnections();
+      toast("Connection saved.", "success");
+    } catch (error) {
+      if (handle401(error)) return;
+      setLoading(button, false);
+      state.notice = { tone: "error", text: humanizeError(error) };
+      renderConnections(state.connections);
     }
-
-    if (Array.isArray(payload.candidates) && payload.candidates.length) {
-      sections.push(
-        renderTable(payload.candidates, [
-          ["entity_name", "Сущность"],
-          ["spend", "Расход", "currency"],
-          ["conversions", "Конверсии", "number"],
-          ["cost_per_result", "Цена результата", "currency"],
-          ["reason", "Причина"],
-          ["source", "Источник"],
-        ]),
-      );
-    }
-
-    if (Array.isArray(payload.periods) && payload.periods.length) {
-      sections.push(
-        renderTable(payload.periods, [
-          ["period", "Период"],
-          ["spend", "Расход", "currency"],
-          ["impressions", "Показы", "number"],
-          ["clicks", "Клики", "number"],
-          ["conversions", "Конверсии", "number"],
-        ]),
-      );
-    }
-
-    if (payload.billing) {
-      sections.push(`<article class="panel-card"><h4>Billing snapshot</h4>${renderKvGrid(Object.entries(payload.billing || {}))}</article>`);
-    }
-
-    if (payload.sections) {
-      sections.push(`
-        <article class="panel-card">
-          <h4>Сводка по секциям</h4>
-          <div class="result-stack">
-            ${Object.entries(payload.sections)
-              .map(([key, value]) => `<div class="result-summary"><strong>${esc(key)}</strong><p>${esc(stringify(value.summary || value.title || value.skill || value))}</p></div>`)
-              .join("")}
-          </div>
-        </article>
-      `);
-    }
-
-    if (Array.isArray(payload.next_actions) && payload.next_actions.length) {
-      sections.push(`
-        <article class="panel-card">
-          <h4>Следующие шаги</h4>
-          <ul class="plain-list">
-            ${payload.next_actions.map((item) => `<li>${esc(item)}</li>`).join("")}
-          </ul>
-        </article>
-      `);
-    }
-
-    if (Array.isArray(payload.recommended_actions) && payload.recommended_actions.length) {
-      sections.push(`
-        <article class="panel-card">
-          <h4>Рекомендованные действия</h4>
-          <ul class="plain-list">
-            ${payload.recommended_actions.map((item) => `<li>${esc(item)}</li>`).join("")}
-          </ul>
-        </article>
-      `);
-    }
-
-    el.skillsResult.innerHTML = sections.join("") || renderEmptyMarkup("Результат навыка пустой.");
   }
 
-  function renderPreview(preview) {
-    el.drawer.classList.add("is-open");
-    el.drawer.setAttribute("aria-hidden", "false");
-    el.drawerBackdrop.hidden = false;
-    el.drawerRiskFlags.innerHTML = (preview.risk_flags || []).length
-      ? (preview.risk_flags || []).map((flag) => `<span class="status-chip is-warning">${esc(flag)}</span>`).join("")
-      : `<span class="status-chip is-success">Рисков не выявлено</span>`;
-    el.drawerJson.textContent = stringify(preview);
+  async function disconnect(provider, button) {
+    if (!window.confirm("Disconnect this provider and remove its saved OAuth tokens from the hosted store?")) return;
+    setLoading(button, true);
+    try {
+      await api("/api/hosted/connections/disconnect", "POST", { provider });
+      if (state.activePending?.provider === provider) state.activePending = null;
+      state.notice = { tone: "success", text: "Provider disconnected." };
+      await loadConnections();
+    } catch (error) {
+      if (handle401(error)) return;
+      setLoading(button, false);
+      state.notice = { tone: "error", text: humanizeError(error) };
+      renderConnections(state.connections);
+    }
   }
 
-  function populateAccountSelect(accounts) {
-    const currentValue = state.accountId || el.filterAccountId.value;
-    const options = [`<option value="">Выбрать аккаунт</option>`]
-      .concat(
-        accounts.map(
-          (account) =>
-            `<option value="${escAttr(account.account_id)}" ${account.account_id === currentValue ? "selected" : ""}>${esc(account.name)} · ${esc(account.account_id)}</option>`,
-        ),
-      )
-      .join("");
-    el.filterAccountId.innerHTML = options;
+  async function runPlatformDiagnostics(provider, button) {
+    setLoading(button, true);
+    try {
+      const result = await api(`/api/diagnostics/platforms/${encodeURIComponent(provider)}?live=1`);
+      const tone = result.status === "mcp_ready" ? "success" : result.status === "api_error" ? "error" : "info";
+      state.notice = { tone, text: `${providerLabel(provider)} diagnostics: ${statusLabel(result.status)}.` };
+      await loadConnections();
+    } catch (error) {
+      if (handle401(error)) return;
+      setLoading(button, false);
+      state.notice = { tone: "error", text: humanizeError(error) };
+      renderConnections(state.connections);
+    }
   }
 
-  function syncFiltersFromForm() {
-    state.accountId = (el.filterAccountId.value || "").trim();
-    state.endDate = el.filterEndDate.value || state.endDate;
+  /* ---------- diagnostics ---------- */
+
+  async function runDiagnostics() {
+    const live = el.diagLive.checked;
+    setLoading(el.diagRun, true);
+    el.diagnosticsContent.innerHTML = emptyState("Running diagnostics…");
+    try {
+      const [overview, security] = await Promise.all([
+        api(`/api/diagnostics${live ? "?live=1" : ""}`),
+        api("/api/diagnostics/security"),
+      ]);
+      state.diagnosticsRun = true;
+      renderDiagnostics(overview, security);
+    } catch (error) {
+      if (handle401(error)) return;
+      el.diagnosticsContent.innerHTML = errorState(humanizeError(error));
+    } finally {
+      setLoading(el.diagRun, false);
+    }
   }
 
-  function setActiveSection(section) {
-    const known = new Set(el.navButtons.map((button) => button.dataset.section));
-    state.currentSection = known.has(section) ? section : "skills";
-    el.navButtons.forEach((button) => {
-      const active = button.dataset.section === state.currentSection;
-      button.classList.toggle("is-active", active);
-      button.setAttribute("aria-current", active ? "page" : "false");
+  function renderDiagnostics(overview, security) {
+    const mcp = overview.mcp || {};
+    const transport = mcp.transport || {};
+    const platforms = overview.platforms || [];
+    const caps = state.capabilities || {};
+
+    const serviceKv = kvGrid([
+      ["Overall status", statusValue(overview.status)],
+      ["Environment", esc(overview.backend?.environment || "—")],
+      ["API auth required", boolValue(overview.backend?.web_api_auth_required)],
+      ["Preview-only", boolValue(overview.backend?.preview_only, true)],
+    ]);
+
+    const securityKv = kvGrid([
+      ["Beta token configured", boolValue(security.beta_token_configured, true)],
+      ["API auth required", boolValue(security.api_auth_required, true)],
+      ["Preview-only", boolValue(security.preview_only, true)],
+      ["Live writes enabled", boolValue(security.live_writes_enabled, false)],
+      ["Tokens returned", boolValue(security.tokens_returned, false)],
+      ["Secrets redacted", boolValue(security.secrets_redacted, true)],
+    ]);
+
+    const mcpKv = kvGrid([
+      ["Transport", esc(transport.type || "—")],
+      ["Status", statusValue(mcp.status)],
+      ["Auth required", boolValue(transport.auth_required, true)],
+      ["Tools ready", String((mcp.tools?.ready || []).length || (caps.mcp?.tools || []).length || "—")],
+    ]);
+
+    const platformRows = platforms.map((p) => {
+      const cls = p.status === "mcp_ready" ? "kv-ok" : p.status === "api_error" ? "kv-err" : "kv-warn";
+      return `<div class="kv-row"><span>${esc(p.label || p.provider)}</span><strong class="${cls}">${esc(statusLabel(p.status))}</strong></div>`;
     });
-    el.panels.forEach((panel) => {
-      const active = panel.dataset.sectionPanel === state.currentSection;
-      panel.classList.toggle("is-active", active);
-      panel.hidden = !active;
-    });
+
+    const missingEnv = overview.missing_required_env || [];
+    const issues = overview.issues || [];
+    const nextActions = overview.next_actions || [];
+
+    el.diagnosticsContent.innerHTML = `
+      <div class="diag-grid">
+        <article class="card"><h3 class="card__title">Service</h3>${serviceKv}</article>
+        <article class="card"><h3 class="card__title">Security</h3>${securityKv}</article>
+        <article class="card"><h3 class="card__title">MCP transport</h3>${mcpKv}</article>
+        <article class="card"><h3 class="card__title">Platforms</h3><div class="kv">${platformRows.join("") || emptyState("No platforms.")}</div></article>
+      </div>
+      ${nextActions.length ? `<article class="card"><h3 class="card__title">Next actions</h3><ul class="list-plain">${nextActions.map((a) => `<li>${esc(a)}</li>`).join("")}</ul></article>` : ""}
+      ${missingEnv.length || issues.length ? `<article class="card"><h3 class="card__title">Attention</h3><ul class="list-plain">${[...issues, ...missingEnv.map((e) => `Missing env: ${e}`)].map((i) => `<li>${esc(i)}</li>`).join("")}</ul></article>` : ""}
+      <details class="raw-json">
+        <summary>Raw diagnostics JSON</summary>
+        <pre>${esc(JSON.stringify({ overview, security }, null, 2))}</pre>
+      </details>
+    `;
   }
 
-  function hydrateConnectionStateFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const oauthError = params.get("oauth_error");
-    const status = params.get("status");
-    if (oauthError) {
-      state.connectionNotice = { tone: "error", text: oauthError };
-    } else if (status === "pending_account_selection") {
-      state.connectionNotice = { tone: "info", text: "OAuth completed. Select accounts to finish setup." };
+  /* ---------- status helpers ---------- */
+
+  function resolveStatus(platform) {
+    const accounts = platform.accounts || [];
+    const pending = platform.pending_selections || [];
+    const summary = platform.diagnostic_summary || {};
+    const missingEnv = (summary.missing_required_env || []).length > 0;
+    if (accounts.length) return "connected";
+    if (pending.some((x) => x.status === "pending_account_selection")) return "select_accounts";
+    if (pending.some((x) => x.status === "expired")) return "reconnect_required";
+    if (missingEnv || !platform.oauth_configured) return "credentials_missing";
+    return "ready_to_connect";
+  }
+
+  function statusBadge(status, limited) {
+    const map = {
+      connected: ["Connected", "ok"],
+      ready_to_connect: ["Ready to connect", "info"],
+      select_accounts: ["Select accounts", "warn"],
+      reconnect_required: ["Reconnect required", "warn"],
+      credentials_missing: ["Credentials missing", "muted"],
+      error: ["Error", "err"],
+    };
+    const [label, tone] = map[status] || ["Unknown", "muted"];
+    const limitedChip = limited ? `<span class="badge badge--muted">Limited beta</span>` : "";
+    return `<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">${limitedChip}<span class="badge badge--${tone}">${esc(label)}</span></div>`;
+  }
+
+  function statusHint(status, canConnect) {
+    if (status === "connected") return "Connected accounts are available to hosted MCP tools.";
+    if (status === "select_accounts") return "OAuth finished. Select the accounts to finish setup.";
+    if (status === "reconnect_required") return "The OAuth selection window expired. Reconnect this platform.";
+    if (status === "credentials_missing") {
+      return "Provider credentials are not configured on the server. Ask the operator to update live env.";
+    }
+    if (status === "ready_to_connect") return "Credentials are configured. Start OAuth to connect ad accounts.";
+    return canConnect ? "Start OAuth to connect ad accounts." : "Provider credentials are not configured on the server.";
+  }
+
+  function statusLabel(status) {
+    return {
+      mcp_ready: "MCP ready",
+      ready: "ready",
+      ok: "ok",
+      connected: "connected",
+      not_connected: "not connected",
+      pending_account_selection: "select accounts",
+      reconnect_required: "reconnect required",
+      token_expired: "token expired",
+      env_missing: "credentials missing",
+      api_error: "API error",
+      needs_setup: "needs setup",
+      degraded: "degraded",
+    }[status] || status || "unknown";
+  }
+
+  function providerLabel(provider) {
+    return { meta_ads: "Meta Ads", google_ads: "Google Ads", tiktok_ads: "TikTok Ads", yandex_direct: "Yandex Direct" }[provider] || provider;
+  }
+
+  /* ---------- small renderers ---------- */
+
+  function stat(label, valueHtml) {
+    return `<div class="stat"><span class="stat__label">${esc(label)}</span><span class="stat__value">${valueHtml}</span></div>`;
+  }
+
+  function badge(text, tone) {
+    return `<span class="badge badge--${tone}">${esc(text)}</span>`;
+  }
+
+  function monoText(value) {
+    return `<span class="mono">${esc(value)}</span>`;
+  }
+
+  function kvGrid(rows) {
+    return `<div class="kv">${rows.map(([k, v]) => `<div class="kv-row"><span>${esc(k)}</span><strong>${v}</strong></div>`).join("")}</div>`;
+  }
+
+  function boolValue(value, expected) {
+    const text = value === true ? "yes" : value === false ? "no" : "—";
+    let cls = "";
+    if (expected !== undefined && value !== undefined) cls = value === expected ? "kv-ok" : "kv-err";
+    return `<span class="${cls}">${text}</span>`;
+  }
+
+  function statusValue(status) {
+    const good = ["ok", "ready", "mcp_ready"].includes(status);
+    const bad = ["api_error", "error", "degraded"].includes(status);
+    const cls = good ? "kv-ok" : bad ? "kv-err" : "kv-warn";
+    return `<span class="${cls}">${esc(statusLabel(status))}</span>`;
+  }
+
+  function noticeMarkup(text, tone) {
+    return `<div class="notice notice--${escAttr(tone || "info")}">${esc(text)}</div>`;
+  }
+
+  function emptyState(text) {
+    return `<div class="empty-state"><p>${esc(text)}</p></div>`;
+  }
+
+  function errorState(text) {
+    return `<div class="empty-state"><p>${esc(text)}</p></div>`;
+  }
+
+  /* ---------- network ---------- */
+
+  async function api(path, method = "GET", body) {
+    const headers = { Accept: "application/json" };
+    const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (body) headers["Content-Type"] = "application/json";
+    const response = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    const text = await response.text();
+    let payload = {};
+    if (text) {
+      try {
+        payload = JSON.parse(text);
+      } catch (error) {
+        const err = new Error(text);
+        err.status = response.status;
+        throw err;
+      }
+    }
+    if (!response.ok) {
+      const err = new Error(payload.error || payload.message || `HTTP ${response.status}`);
+      err.status = response.status;
+      err.code = payload.code;
+      throw err;
+    }
+    return payload;
+  }
+
+  function handle401(error) {
+    if (error && error.status === 401) {
+      clearToken();
+      state.capabilities = null;
+      state.connections = null;
+      showGate("Session expired or invalid token. Enter your beta token again.");
+      return true;
+    }
+    return false;
+  }
+
+  function getToken() {
+    try {
+      return localStorage.getItem(TOKEN_KEY) || "";
+    } catch (error) {
+      return "";
     }
   }
 
-  function initialSectionFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("section") || "skills";
+  function setToken(token) {
+    try {
+      localStorage.setItem(TOKEN_KEY, token);
+    } catch (error) {
+      /* ignore */
+    }
   }
 
-  function clearOAuthQueryParams() {
-    const cleanUrl = `${window.location.pathname}?section=connections`;
-    window.history.replaceState({}, "", cleanUrl);
+  function clearToken() {
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+    } catch (error) {
+      /* ignore */
+    }
   }
 
-  function setStatus(kind, text) {
-    el.statusDot.classList.remove("is-loading", "is-ok", "is-error", "is-warning");
-    el.statusDot.classList.add(`is-${kind}`);
-    el.statusText.textContent = text;
+  /* ---------- utilities ---------- */
+
+  function humanizeError(error) {
+    const text = String(error?.message || error || "").trim();
+    const lower = text.toLowerCase();
+    if (!text) return "Something went wrong. Please try again.";
+    if (lower.includes("api_auth_not_configured") || lower.includes("ad_mcp_web_api_token")) {
+      return "The server has no beta token configured. Ask the operator to set AD_MCP_WEB_API_TOKEN.";
+    }
+    if (lower.includes("api_auth_required") || lower.includes("beta token")) {
+      return "A valid beta token is required.";
+    }
+    if (lower.includes("not configured") && lower.includes("oauth")) {
+      return "Provider OAuth credentials are not configured on the server. Ask the operator to update live env.";
+    }
+    if (lower.includes("state expired") || (lower.includes("pending") && lower.includes("expired"))) {
+      return "The OAuth session expired. Reconnect the platform.";
+    }
+    if (lower.includes("no ad accounts") || lower.includes("no accessible")) {
+      return "OAuth succeeded but the provider returned no ad accounts for this user.";
+    }
+    if (lower.includes("refresh_token")) {
+      return "OAuth did not return a refresh token. Reconnect with the consent prompt.";
+    }
+    if (text.length > 240) return `${text.slice(0, 237)}…`;
+    return text;
+  }
+
+  function formatTime(value) {
+    if (!value) return "—";
+    try {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return date.toLocaleString();
+    } catch (error) {
+      return String(value);
+    }
+  }
+
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+    } catch (error) {
+      /* fall through */
+    }
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "readonly");
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    try {
+      document.execCommand("copy");
+    } catch (error) {
+      /* ignore */
+    }
+    area.remove();
+  }
+
+  function setLoading(button, loading) {
+    if (!button) return;
+    button.disabled = loading;
+    button.classList.toggle("is-loading", loading);
+  }
+
+  function cleanUrl() {
+    if (window.location.search) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }
 
   function toast(message, tone = "info") {
@@ -1441,321 +828,7 @@
     window.setTimeout(() => {
       item.classList.add("is-hidden");
       window.setTimeout(() => item.remove(), 220);
-    }, 2800);
-  }
-
-  function renderLoading(container, text) {
-    container.innerHTML = `<div class="empty-state"><p>${esc(text)}</p></div>`;
-  }
-
-  function renderError(container, text) {
-    container.innerHTML = `<div class="error-state">${esc(humanizeError(text))}</div>`;
-  }
-
-  function renderEmpty(container, text) {
-    container.innerHTML = renderEmptyMarkup(text);
-  }
-
-  function renderEmptyMarkup(text) {
-    return `<div class="empty-state"><p>${esc(text)}</p></div>`;
-  }
-
-  function renderInlineNoticeMarkup(text, tone = "warning") {
-    if (!text) return "";
-    return `<div class="notice-state notice-state--${escAttr(tone)}">${esc(text)}</div>`;
-  }
-
-  function renderKvGrid(entries) {
-    return `
-      <div class="kv-grid">
-        ${entries
-          .map(([label, value]) => `
-            <div class="kv-row">
-              <span>${esc(label)}</span>
-              <strong>${esc(stringify(value))}</strong>
-            </div>
-          `)
-          .join("")}
-      </div>
-    `;
-  }
-
-  function renderKv(label, value) {
-    return `
-      <div class="kv-row">
-        <span>${esc(label)}</span>
-        <strong>${esc(stringify(value))}</strong>
-      </div>
-    `;
-  }
-
-  function connectionDisplayStatus(platform) {
-    if (platform.status === "development_configured") return "connected";
-    if (platform.status === "expired/reconnect_required") return "expired/reconnect_required";
-    if (platform.pending_selections?.some((item) => item.status === "pending_account_selection")) {
-      return "pending_account_selection";
-    }
-    if (platform.status) return platform.status;
-    return "not_connected";
-  }
-
-  function connectionStatusLabel(status) {
-    return {
-      not_connected: "not connected",
-      connecting: "connecting",
-      pending_account_selection: "select accounts",
-      connected: "connected",
-      error: "error",
-      env_missing: "env missing",
-      platform_not_configured: "platform not configured",
-      oauth_started: "OAuth started",
-      token_expired: "token expired",
-      reconnect_required: "reconnect required",
-      api_error: "API error",
-      no_accounts_selected: "no accounts selected",
-      mcp_ready: "MCP ready",
-      "expired/reconnect_required": "reconnect required",
-      expired: "expired",
-      development_configured: "connected",
-    }[status] || status || "unknown";
-  }
-
-  function connectionSubtitle(platform) {
-    const priority = platform.beta_priority ? `${platform.beta_priority} priority` : "provider";
-    return `${platform.provider} · ${platform.source || "none"} · ${priority}`;
-  }
-
-  function connectionHint(platform, status) {
-    if (status === "connected") return "Connected accounts are available to hosted MCP tools.";
-    if (status === "mcp_ready") return "MCP tools can use this platform.";
-    if (status === "env_missing") return "Required OAuth env variables are missing on the server.";
-    if (status === "api_error") return "Provider API returned an error. Run diagnostics for details.";
-    if (status === "no_accounts_selected") return "OAuth may be configured, but no accounts are selected.";
-    if (status === "token_expired") return "Stored token appears expired. Reconnect this platform.";
-    if (status === "pending_account_selection") return "OAuth finished, but account selection is still required.";
-    if (status === "expired/reconnect_required" || status === "expired") return "The OAuth selection window expired. Reconnect this platform.";
-    if (!platform.oauth_configured) return "OAuth app credentials are not configured on the server yet.";
-    if (status === "error") return "The last OAuth attempt failed. Review the message and reconnect.";
-    return "Start OAuth to connect ad accounts through the hosted dashboard.";
-  }
-
-  function providerLabel(provider) {
-    return {
-      meta_ads: "Meta Ads",
-      google_ads: "Google Ads",
-      tiktok_ads: "TikTok Ads",
-      yandex_direct: "Yandex Direct",
-    }[provider] || provider;
-  }
-
-  function renderTable(rows, columns) {
-    if (!rows.length) {
-      return renderEmptyMarkup("Нет данных для отображения.");
-    }
-    return `
-      <div class="table-shell">
-        <table class="data-table">
-          <thead>
-            <tr>${columns.map(([, label]) => `<th>${esc(label)}</th>`).join("")}</tr>
-          </thead>
-          <tbody>
-            ${rows
-              .map(
-                (row) => `
-                  <tr>
-                    ${columns
-                      .map(([key, , format]) => `<td>${formatCell(readPath(row, key), format, row.currency)}</td>`)
-                      .join("")}
-                  </tr>
-                `,
-              )
-              .join("")}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  function formatCell(value, format, currencyHint) {
-    if (format === "boolean") {
-      return esc(boolText(Boolean(value)));
-    }
-    if (format === "array") {
-      return esc(Array.isArray(value) ? value.join(", ") : stringify(value));
-    }
-    return esc(formatValue(value, format, currencyHint));
-  }
-
-  function formatValue(value, format, currencyHint = "USD") {
-    if (value === null || value === undefined || value === "") {
-      return "—";
-    }
-    if (format === "currency") {
-      return formatCurrency(value, currencyHint);
-    }
-    if (format === "number") {
-      return formatNumber(value);
-    }
-    if (format === "percent") {
-      return formatPercent(value);
-    }
-    return stringify(value);
-  }
-
-  function formatCurrency(value, currency = "USD") {
-    const amount = Number(value || 0);
-    return new Intl.NumberFormat("ru-RU", {
-      style: "currency",
-      currency: currency || "USD",
-      maximumFractionDigits: 2,
-    }).format(amount);
-  }
-
-  function formatNumber(value) {
-    return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(Number(value || 0));
-  }
-
-  function formatPercent(value) {
-    const number = Number(value || 0);
-    if (number > 0 && number <= 1) {
-      return `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(number * 100)}%`;
-    }
-    return `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(number)}%`;
-  }
-
-  function boolText(value) {
-    return value ? "Да" : "Нет";
-  }
-
-  function stringify(value) {
-    if (value === null || value === undefined || value === "") {
-      return "—";
-    }
-    if (typeof value === "string") {
-      return value;
-    }
-    if (typeof value === "number" || typeof value === "boolean") {
-      return String(value);
-    }
-    try {
-      return JSON.stringify(value, null, 2);
-    } catch (error) {
-      return String(value);
-    }
-  }
-
-  function describePersistenceShort(persistence) {
-    const status = persistence.status || (persistence.reachable ? "ready" : "unknown");
-    if (status === "ok") {
-      return "Синхронизация выполнена";
-    }
-    if (status === "failed") {
-      return `Ошибка: ${persistence.reason || persistence.last_error || "unknown"}`;
-    }
-    if (status === "skipped") {
-      return `Пропущено: ${persistence.reason || "unknown"}`;
-    }
-    return `Статус: ${status}`;
-  }
-
-  function parseIds(value) {
-    return String(value || "")
-      .split(/[\s,;]+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  function toNumberOrNull(value) {
-    const text = String(value || "").trim();
-    if (!text) return null;
-    const number = Number(text.replace(",", "."));
-    return Number.isFinite(number) ? number : null;
-  }
-
-  function emptyToNull(value) {
-    const text = String(value || "").trim();
-    return text ? text : null;
-  }
-
-  function withQuery(params) {
-    const query = new URLSearchParams();
-    Object.entries(params || {}).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") {
-        query.set(key, String(value));
-      }
-    });
-    const text = query.toString();
-    return text ? `?${text}` : "";
-  }
-
-  async function requestJson(url, method = "GET", body, retriedAuth = false) {
-    const headers = {};
-    const token = getStoredApiToken();
-    if (body) {
-      headers["Content-Type"] = "application/json";
-    }
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const text = await response.text();
-    let payload = {};
-    if (text) {
-      try {
-        payload = JSON.parse(text);
-      } catch (error) {
-        throw new Error(text);
-      }
-    }
-    if (!response.ok) {
-      if (isAuthError(response, payload) && !retriedAuth) {
-        const nextToken = window.prompt("Введите beta token MCP сервера");
-        if (nextToken && nextToken.trim()) {
-          localStorage.setItem(TOKEN_STORAGE_KEY, nextToken.trim());
-          return requestJson(url, method, body, true);
-        }
-      }
-      throw new Error(humanizeError(payload.error || payload.message || `HTTP ${response.status}`));
-    }
-    return payload;
-  }
-
-  function getStoredApiToken() {
-    try {
-      return localStorage.getItem(TOKEN_STORAGE_KEY) || "";
-    } catch (error) {
-      return "";
-    }
-  }
-
-  function isAuthError(response, payload) {
-    return response.status === 401 || payload.code === "api_auth_required";
-  }
-
-  async function copyText(text) {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return;
-    }
-    const area = document.createElement("textarea");
-    area.value = text;
-    area.setAttribute("readonly", "readonly");
-    area.style.position = "fixed";
-    area.style.opacity = "0";
-    document.body.appendChild(area);
-    area.select();
-    document.execCommand("copy");
-    area.remove();
-  }
-
-  function readPath(source, path) {
-    return String(path)
-      .split(".")
-      .reduce((acc, key) => (acc && typeof acc === "object" ? acc[key] : undefined), source);
+    }, 2600);
   }
 
   function esc(value) {
@@ -1763,54 +836,11 @@
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
-      .replace(/\"/g, "&quot;")
+      .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
   }
 
   function escAttr(value) {
     return esc(value);
   }
-
-  function statusClass(status) {
-    const normalized = String(status || "").toUpperCase();
-    if (["ACTIVE", "OK", "READY", "SUCCESS", "CONNECTED", "OAUTH_READY", "MCP_READY"].includes(normalized)) return "is-success";
-    if (["READY_FOR_OAUTH", "OAUTH_NOT_CONFIGURED", "NOT_CONNECTED", "CONNECTING", "PENDING_ACCOUNT_SELECTION", "EXPIRED", "EXPIRED/RECONNECT_REQUIRED", "RECONNECT_REQUIRED", "TOKEN_EXPIRED", "NO_ACCOUNTS_SELECTED", "ENV_MISSING", "PAUSED", "PENDING_REVIEW", "LEARNING", "LIMITED"].includes(normalized)) return "is-warning";
-    if (["DISAPPROVED", "ERROR", "FAILED", "REJECTED", "API_ERROR"].includes(normalized)) return "is-danger";
-    return "is-neutral";
-  }
-
-  function oauthSlug(provider) {
-    return {
-      meta_ads: "meta",
-      google_ads: "google",
-      tiktok_ads: "tiktok",
-      yandex_direct: "yandex",
-    }[provider] || "";
-  }
-
-  function humanizeError(error) {
-    const text = String(error?.message || error || "").trim();
-    const normalized = text.toLowerCase();
-    if (!text) {
-      return "Не удалось получить данные. Попробуйте обновить раздел ещё раз.";
-    }
-    if (normalized.includes("api_auth_not_configured") || normalized.includes("ad_mcp_web_api_token")) {
-      return "На сервере не настроен beta token для web API. Добавьте AD_MCP_WEB_API_TOKEN и перезапустите сервис.";
-    }
-    if (normalized.includes("api_auth_required") || normalized.includes("beta token")) {
-      return "Для доступа к панели нужен beta token MCP сервера.";
-    }
-    if (normalized.includes("2446079") || normalized.includes("слишком много вызовов") || normalized.includes("too many calls")) {
-      return "Meta временно ограничила частоту API-вызовов. Панель покажет частичные данные; повторите обновление через 1-2 минуты.";
-    }
-    if (normalized.includes("timeout") || normalized.includes("timed out") || normalized.includes("504")) {
-      return "Источник отвечает слишком долго. Попробуйте повторить обновление чуть позже.";
-    }
-    if (text.length > 260) {
-      return `${text.slice(0, 257)}...`;
-    }
-    return text;
-  }
-
-  init();
 })();

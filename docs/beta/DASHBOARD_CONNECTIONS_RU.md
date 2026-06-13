@@ -1,26 +1,34 @@
 # Dashboard Connections
 
-Dashboard Connections - основной onboarding-экран beta-пользователя. Через него подключаются рекламные платформы, выбираются аккаунты и проверяется готовность hosted MCP.
+`Connections` - основной рабочий раздел dashboard. Через него beta-пользователь подключает рекламные платформы, выбирает аккаунты и проверяет готовность hosted MCP.
 
-## Как открыть
+Dashboard состоит из трёх разделов:
+
+- `Overview` - статус сервиса, счётчики подключений, next steps и блок `Connect to MCP client` с MCP URL.
+- `Connections` - карточки платформ, OAuth, выбор аккаунтов, reconnect/disconnect.
+- `Diagnostics` - запуск полной диагностики (service, security, MCP, platforms).
+
+В header всегда виден бейдж `Preview-only: ON` - опасные действия только предпросматриваются и не применяются к рекламным кабинетам.
+
+## Вход (token gate)
 
 1. Открыть dashboard URL, который выдала команда AdForge.
-2. Если dashboard попросил beta token, вставить токен, полученный отдельно.
-3. Открыть раздел `Connections`.
+2. На экране входа вставить beta token в поле `Beta access token` и нажать `Enter dashboard`.
+3. При неверном токене показывается `Invalid or missing beta token`.
+
+Токен хранится только в браузере и нигде не отображается после входа. Кнопка `Sign out` в header очищает его.
 
 Пользователь не должен скачивать репозиторий, запускать локальный сервер или редактировать `.env`.
 
-## Hosted MCP block
+## Hosted MCP block (Overview)
 
-В верхнем блоке Connections отображаются:
+В разделе `Overview`, блок `Connect to MCP client`:
 
-- имя сервера `AdForge MCP`;
-- transport, обычно `streamable_http`;
 - MCP URL, например `https://your-domain.com/mcp`;
-- состояние connection store;
-- кнопка `Copy MCP URL`.
+- кнопка `Copy MCP URL`;
+- пример заголовка авторизации `Authorization: Bearer <BETA_TOKEN>` (без реального токена).
 
-Этот URL нужен для Codex, Claude, Gemini или другого MCP-клиента.
+Этот URL нужен для Codex, Claude или другого MCP-клиента. Beta token передаётся как Bearer authorization.
 
 ## Подключение Meta Ads
 
@@ -72,19 +80,21 @@ Dashboard Connections - основной onboarding-экран beta-пользо
 
 Если аккаунты не выбрать, MCP tools увидят платформу как `no_accounts_selected`.
 
-## Статусы
+## Статусы карточек
 
-| Status | Значение |
+В карточке платформы статус показан бейджем:
+
+| Бейдж | Значение |
 | --- | --- |
-| `not_connected` | Платформа не подключена. |
-| `connecting` | OAuth начат или ожидается callback. |
-| `pending_account_selection` | OAuth прошел, нужно выбрать аккаунты. |
-| `connected` | Подключение сохранено. |
-| `mcp_ready` | MCP tools могут использовать платформу. |
-| `error` | Последняя операция завершилась ошибкой. |
-| `expired` | Pending selection или token истек. |
-| `reconnect_required` | Нужно переподключить платформу. |
-| `not_available` | Возможность пока ограничена или не реализована. |
+| `Credentials missing` | OAuth credentials провайдера не настроены на сервере. Кнопка `Connect` заблокирована. |
+| `Ready to connect` | Credentials есть, можно запускать OAuth. |
+| `Select accounts` | OAuth прошёл, нужно выбрать аккаунты (pending selection). |
+| `Connected` | Подключение сохранено, аккаунты доступны MCP tools. |
+| `Reconnect required` | Pending selection истёк - нужно переподключить. |
+| `Limited beta` | Дополнительный бейдж для TikTok/Yandex: OAuth groundwork, campaigns/metrics могут быть `not_available`. |
+| `Error` | Последняя операция завершилась ошибкой (см. `Last error` в карточке). |
+
+Diagnostics-статусы платформ (`Run diagnostics`): `mcp_ready`, `env_missing`, `not_connected`, `token_expired`, `api_error`, `needs_setup`.
 
 ## Reconnect
 
